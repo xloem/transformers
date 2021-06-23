@@ -157,6 +157,7 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
             raise ValueError(f"`penalty` has to be a strictly positive float, but is {penalty}")
 
         self.penalty = penalty
+        self.raw_penalty = penalty
         self.penalize_last = None
         if not m is None and not penalize_last is None:
             self.penalty = (torch.arange(penalize_last)/(penalize_last - 1)) * 2. - 1
@@ -168,7 +169,7 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
         self.alpha_enable = self.alpha_frequency is not None or self.alpha_presence is not None
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        if self.penalty > 1.0:
+        if self.raw_penalty > 1.0:
             if not self.penalize_last is None:
                 penality_len = min(input_ids.shape[1], self.penalize_last)
                 input_ids = input_ids[:, -penality_len:]
@@ -184,15 +185,15 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
             scores.scatter_(1, input_ids, score)
 
         if self.alpha_enable:
-            c = torch.zeros(scores.shape).long()
+            c = torch.zeros(scores.shape).long().to(input_ids.device)
             # unique only returns counts for first item in batch, so manually iterate
             for i in range(input_ids.shape[0]):
                 token_input_ids, counts = torch.unique(input_ids[i], sorted=True, return_counts=True, dim=-1)
                 c[i].scatter_(0, token_input_ids, counts)
             if self.alpha_frequency:
-                scores -= c[i] * self.alpha_frequency
+                scores -= c * self.alpha_frequency
             if self.alpha_presence:
-                scores[c[i] > 0] -= self.alpha_presence
+                scores[c > 0] -= self.alpha_presence
         return scores
 
 
