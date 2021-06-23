@@ -188,7 +188,10 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
             c = torch.zeros(scores.shape).long().to(input_ids.device)
             # unique only returns counts for first item in batch, so manually iterate
             for i in range(input_ids.shape[0]):
-                token_input_ids, counts = torch.unique(input_ids[i], sorted=True, return_counts=True, dim=-1)
+                if self.penalize_last is not None:
+                    token_input_ids, counts = torch.unique(input_ids[i,-self.penalize_last:], sorted=True, return_counts=True, dim=-1)
+                else:
+                    token_input_ids, counts = torch.unique(input_ids[i], sorted=True, return_counts=True, dim=-1)
                 c[i].scatter_(0, token_input_ids, counts)
             if self.alpha_frequency:
                 scores -= c * self.alpha_frequency
