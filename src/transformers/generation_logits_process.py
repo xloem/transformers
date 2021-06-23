@@ -152,7 +152,7 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
             <https://arxiv.org/pdf/1909.05858.pdf>`__ for more details.
     """
 
-    def __init__(self, penalty: float, m=3.33, penalize_last=250):
+    def __init__(self, penalty: float=1.0, m=3.33, penalize_last=250, alpha_frequency=None, alpha_presence=None):
         if not isinstance(penalty, float) or not (penalty > 0):
             raise ValueError(f"`penalty` has to be a strictly positive float, but is {penalty}")
 
@@ -163,21 +163,36 @@ class RepetitionPenaltyLogitsProcessor(LogitsProcessor):
             self.penalty = (m * self.penalty) / (1 + torch.abs(self.penalty) * (m - 1))
             self.penalty = 1 + ((self.penalty + 1) / 2).unsqueeze(0) * (penalty - 1)
             self.penalize_last = penalize_last
+        self.alpha_frequency = alpha_frequency if alpha_frequency is not None and alpha_frequency > 0.0 else None
+        self.alpha_presence = alpha_presence if alpha_presence is not None and alpha_presence > 0.0 else None
+        self.alpha_enable = self.alpha_frequency is not None or self.alpha_presence is not None
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-        if not self.penalize_last is None:
-            penality_len = min(input_ids.shape[1], self.penalize_last)
-            input_ids = input_ids[:, -penality_len:]
-        score = torch.gather(scores, 1, input_ids)
+        if self.penalty > 1.0:
+            if not self.penalize_last is None:
+                penality_len = min(input_ids.shape[1], self.penalize_last)
+                input_ids = input_ids[:, -penality_len:]
+            score = torch.gather(scores, 1, input_ids)
 
-        # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
-        if not self.penalize_last is None:
-            penalty = self.penalty.type(score.dtype).to(score.device)
-            score = torch.where(score < 0, score * penalty[:, -penality_len:], score / penalty[:, -penality_len:])
-        else:
-            score = torch.where(score < 0, score * self.penalty, score / self.penalty)
+            # if score < 0 then repetition penalty has to be multiplied to reduce the previous token probability
+            if not self.penalize_last is None:
+                penalty = self.penalty.type(score.dtype).to(score.device)
+                score = torch.where(score < 0, score * penalty[:, -penality_len:], score / penalty[:, -penality_len:])
+            else:
+                score = torch.where(score < 0, score * self.penalty, score / self.penalty)
 
-        scores.scatter_(1, input_ids, score)
+            scores.scatter_(1, input_ids, score)
+
+        if self.alpha_enable:
+            c = torch.zeros(scores.shape).long()
+            # unique only returns counts for first item in batch, so manually iterate
+            for i in range(input_ids.shape[0]):
+                token_input_ids, counts = torch.unique(input_ids[i], sorted=True, return_counts=True, dim=-1)
+                c[i].scatter_(0, token_input_ids, counts)
+            if self.alpha_frequency:
+                scores -= c[i] * self.alpha_frequency
+            if self.alpha_presence:
+                scores[c[i] > 0] -= self.alpha_presence
         return scores
 
 
