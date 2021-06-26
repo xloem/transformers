@@ -885,7 +885,7 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
         )
         hidden_states = transformer_outputs[0]
 
-        lm_logits = self.lm_head(hidden_states)
+        lm_logits = self.lm_head(hidden_states).float()
 
         loss = None
         if labels is not None:
