@@ -149,6 +149,7 @@ class GPTNeoConfig(PretrainedConfig):
         self.use_cache = use_cache
         self.rotary = rotary
         self.rotary_dim = rotary_dim
+        self.jax = jax
         self.model_device = model_device
         self.model_dtype = model_dtype
         self.full_bf16 = full_bf16
