@@ -136,6 +136,10 @@ def load_tf_weights_in_gpt_neo(model, config, gpt_neo_checkpoint_path):
     return model
 
 def to_gpu(x, config):
+    model_dtypes = {"fp16": torch.float16, "fp32": torch.float32, "bf16": torch.bfloat16}
+    x = x.to(model_dtypes[config.model_dtype])
+    if config.model_device is not None:
+        return x.to(config.model_device)
     colab = False
     space = False
     gb = 8000
@@ -593,7 +597,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         if not config.rotary:
             self.wpe = nn.Embedding(config.max_position_embeddings, self.embed_dim)
         self.drop = nn.Dropout(config.embed_dropout)
-        self.h = nn.ModuleList([to_gpu(GPTNeoBlock(config, layer_id=i).half(), config) for i in range(config.num_layers)])
+        self.h = nn.ModuleList([to_gpu(GPTNeoBlock(config, layer_id=i), config) for i in range(config.num_layers)])
         self.ln_f = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_epsilon)
         self.rotary = config.rotary
 
@@ -792,9 +796,9 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self.transformer = to_gpu(GPTNeoModel(config).half(), config)
+        self.transformer = to_gpu(GPTNeoModel(config), config)
         self.jax = config.jax
-        self.lm_head = to_gpu(nn.Linear(config.hidden_size, config.vocab_size, bias=self.jax).half(), config)
+        self.lm_head = to_gpu(nn.Linear(config.hidden_size, config.vocab_size, bias=self.jax), config)
         self.init_weights()
 
     def get_output_embeddings(self):
