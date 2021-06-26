@@ -122,6 +122,7 @@ class GPTNeoConfig(PretrainedConfig):
         jax=False,
         model_device=None, # one of: None (auto), "cpu", "cuda", "cuda:0" etc.
         model_dtype="fp16", # one of: "fp16", "fp32", "bf16"
+        full_bf16=False, # do torch.matmul in bf16?
         **kwargs
     ):
         super().__init__(bos_token_id=bos_token_id, eos_token_id=eos_token_id, **kwargs)
@@ -150,6 +151,7 @@ class GPTNeoConfig(PretrainedConfig):
         self.rotary_dim = rotary_dim
         self.model_device = model_device
         self.model_dtype = model_dtype
+        self.full_bf16 = full_bf16
 
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
