@@ -120,8 +120,8 @@ class GPTNeoConfig(PretrainedConfig):
         rotary=False,
         rotary_dim=None,
         jax=False,
-        model_device="cuda",
-        model_dtype="fp16",
+        model_device=None, # one of: None (auto), "cpu", "cuda", "cuda:0" etc.
+        model_dtype="fp16", # one of: "fp16", "fp32", "bf16"
         **kwargs
     ):
         super().__init__(bos_token_id=bos_token_id, eos_token_id=eos_token_id, **kwargs)
