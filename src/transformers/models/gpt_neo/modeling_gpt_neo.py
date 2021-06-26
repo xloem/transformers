@@ -208,8 +208,8 @@ class GPTNeoAttentionMixin:
         new_shape = tensor.size()[:-2] + (num_heads * attn_head_size,)
         return tensor.view(new_shape)
 
-    def _attn(self, query, key, value, causal_mask, masked_bias, attn_dropout, attention_mask=None, head_mask=None, scale_attn=None):
-        if query.dtype is torch.bfloat16:
+    def _attn(self, query, key, value, causal_mask, masked_bias, attn_dropout, attention_mask=None, head_mask=None, scale_attn=None, full_bf16=False):
+        if not full_bf16 and query.dtype is torch.bfloat16:
             attn_weights = torch.matmul(query.float(), key.transpose(-1, -2).float())
         else:
             attn_weights = torch.matmul(query, key.transpose(-1, -2))
@@ -230,7 +230,7 @@ class GPTNeoAttentionMixin:
         if head_mask is not None:
             attn_weights = attn_weights * head_mask
 
-        if value.dtype is torch.bfloat16:
+        if not full_bf16 and value.dtype is torch.bfloat16:
             attn_output = torch.matmul(attn_weights.float(), value.float()).to(value.dtype)
         else:
             attn_output = torch.matmul(attn_weights, value).to(value.dtype)
@@ -280,6 +280,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         self.v_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=False)
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim, bias=not config.jax)
+        self.full_bf16 = config.full_bf16
         self.rotary = config.rotary
         self.rotary_dim = self.head_dim
         if config.rotary_dim is not None:
@@ -346,7 +347,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length]
 
         attn_output, attn_weights = self._attn(
-            query, key, value, causal_mask, self.masked_bias, self.attn_dropout, attention_mask, head_mask, self.scale_attn
+            query, key, value, causal_mask, self.masked_bias, self.attn_dropout, attention_mask, head_mask, self.scale_attn, self.full_bf16
         )
 
         attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
