@@ -205,7 +205,7 @@ class GPTNeoAttentionMixin:
         return tensor.view(new_shape)
 
     def _attn(self, query, key, value, causal_mask, masked_bias, attn_dropout, attention_mask=None, head_mask=None, scale_attn=None):
-        attn_weights = torch.matmul(query, key.transpose(-1, -2))
+        attn_weights = torch.matmul(query.float(), key.transpose(-1, -2).float())
         attn_weights = torch.where(causal_mask, attn_weights, masked_bias.to(attn_weights.dtype))
         
         if scale_attn is not None:
@@ -223,7 +223,7 @@ class GPTNeoAttentionMixin:
         if head_mask is not None:
             attn_weights = attn_weights * head_mask
 
-        attn_output = torch.matmul(attn_weights, value)
+        attn_output = torch.matmul(attn_weights.float(), value.float()).to(value.dtype)
 
         return attn_output, attn_weights
 
@@ -310,22 +310,22 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
                 q_rot = query[:, :, :, :self.rotary_dim]
                 q_pass = query[:, :, :, self.rotary_dim:]
 
-                k_rot = apply_rotary_pos_emb(k_rot, (self.sin, self.cos), offset=offset).half()
-                q_rot = apply_rotary_pos_emb(q_rot, (self.sin, self.cos), offset=offset).half()
+                k_rot = apply_rotary_pos_emb(k_rot, (self.sin, self.cos), offset=offset).to(k_rot.dtype)
+                q_rot = apply_rotary_pos_emb(q_rot, (self.sin, self.cos), offset=offset).to(q_rot.dtype)
 
                 key = torch.cat([k_rot, k_pass], dim=-1)
                 query = torch.cat([q_rot, q_pass], dim=-1)
             elif self.rotary:
-                key = apply_rotary_pos_emb(key, (self.sin, self.cos), offset=offset)
-                query = apply_rotary_pos_emb(query, (self.sin, self.cos), offset=offset)
+                key = apply_rotary_pos_emb(key, (self.sin, self.cos), offset=offset).to(key.dtype)
+                query = apply_rotary_pos_emb(query, (self.sin, self.cos), offset=offset).to(queue.dtype)
             key = key.permute(0, 2, 1, 3)
             query = query.permute(0, 2, 1, 3)
 
         if layer_past is not None:
             past_key = layer_past[0]
             past_value = layer_past[1]
-            key = torch.cat((past_key, key), dim=-2).half()
-            value = torch.cat((past_value, value), dim=-2).half()
+            key = torch.cat((past_key, key), dim=-2).to(key.dtype)
+            value = torch.cat((past_value, value), dim=-2).to(value.dtype)
 
         if use_cache is True:
             present = (key, value)
