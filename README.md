@@ -10,7 +10,7 @@ This branch has the following patches:
 * fix random samples showing up in fp16 mode
 * [support](#gpt-j-6b) for GPT-J 6B
 * support for [openai](https://beta.openai.com/docs/api-reference/parameter-details) repetition penalty through parameters repetition_penalty_frequency and repetition_penalty_presence (affected by range, but not slope)
-* new config parameters for the gptneo flag: model_device ("cpu", "cuda", "cuda:1", ...) and model_dtype ("fp32", "fp16", "bf16")
+* new config parameters for the gptneo flag: model_device (None for auto, "cpu", "cuda", "cuda:1", ...) and model_dtype ("fp32", "fp16", "bf16")
 
 Protip: Make sure to call model.generate with `use_cache=True`.
 
