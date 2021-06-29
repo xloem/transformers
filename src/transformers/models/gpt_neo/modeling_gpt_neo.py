@@ -724,7 +724,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
             attn_mask = global_attention_mask
 
             if output_hidden_states:
-                all_hidden_states = all_hidden_states + (hidden_states,)
+                all_hidden_states = all_hidden_states + (hidden_states.cpu(),)
 
             if getattr(self.config, "gradient_checkpointing", False) and self.training:
 
