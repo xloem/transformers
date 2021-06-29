@@ -35,6 +35,7 @@ from .generation_logits_process import (
     NoBadWordsLogitsProcessor,
     NoRepeatNGramLogitsProcessor,
     PrefixConstrainedLogitsProcessor,
+    LogitBiasProcessor,
     RepetitionPenaltyLogitsProcessor,
     TemperatureLogitsWarper,
     TopKLogitsWarper,
@@ -558,6 +559,7 @@ class GenerationMixin:
         encoder_no_repeat_ngram_size: int,
         encoder_input_ids: torch.LongTensor,
         bad_words_ids: List[List[int]],
+        logit_bias: List[Tuple[int, float]],
         min_length: int,
         max_length: int,
         eos_token_id: int,
@@ -608,6 +610,8 @@ class GenerationMixin:
                     diversity_penalty=diversity_penalty, num_beams=num_beams, num_beam_groups=num_beam_groups
                 )
             )
+        if logit_bias is not None:
+            processors.append(LogitBiasProcessor(logit_bias))
         if (repetition_penalty is not None and repetition_penalty > 1.0) or (repetition_penalty_frequency is not None and repetition_penalty_frequency > 0.0) or (repetition_penalty_presence is not None and repetition_penalty_presence > 0.0):
             processors.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty, m=repetition_penalty_slope, penalize_last=repetition_penalty_range, alpha_frequency=repetition_penalty_frequency, alpha_presence=repetition_penalty_presence))
         if no_repeat_ngram_size is not None and no_repeat_ngram_size > 0:
@@ -664,6 +668,7 @@ class GenerationMixin:
         repetition_penalty_frequency: Optional[float] = None,
         repetition_penalty_presence: Optional[float] = None,
         bad_words_ids: Optional[Iterable[int]] = None,
+        logit_bias: Optional[List[Tuple[int, float]]] = None,
         bos_token_id: Optional[int] = None,
         pad_token_id: Optional[int] = None,
         eos_token_id: Optional[int] = None,
@@ -964,6 +969,7 @@ class GenerationMixin:
             no_repeat_ngram_size=no_repeat_ngram_size,
             encoder_no_repeat_ngram_size=encoder_no_repeat_ngram_size,
             encoder_input_ids=encoder_input_ids,
+            logit_bias=logit_bias,
             bad_words_ids=bad_words_ids,
             min_length=min_length,
             max_length=max_length,
