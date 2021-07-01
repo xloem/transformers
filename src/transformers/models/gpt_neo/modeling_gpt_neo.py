@@ -268,7 +268,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
         self.num_heads = config.num_heads
         self.head_dim = self.embed_dim // self.num_heads
         if config.jax:
-            self.register_buffer("scale_attn", torch.sqrt(torch.tensor(self.head_dim)))
+            self.register_buffer("scale_attn", torch.sqrt(torch.tensor(self.head_dim).float()))
         else:
             self.scale_attn = None
         if self.head_dim * self.num_heads != self.embed_dim:
