@@ -227,6 +227,7 @@ class BeamSearchDecoderOnlyOutput(ModelOutput):
     scores: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    beam_scores: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @dataclass
@@ -275,6 +276,7 @@ class BeamSearchEncoderDecoderOutput(ModelOutput):
     decoder_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     cross_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     decoder_hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    beam_scores: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @dataclass
@@ -307,6 +309,7 @@ class BeamSampleDecoderOnlyOutput(ModelOutput):
     scores: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    beam_scores: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @dataclass
@@ -353,6 +356,7 @@ class BeamSampleEncoderDecoderOutput(ModelOutput):
     decoder_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     cross_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     decoder_hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    beam_scores: Optional[Tuple[torch.FloatTensor]] = None
 
 
 GreedySearchOutput = Union[GreedySearchEncoderDecoderOutput, GreedySearchDecoderOnlyOutput]
@@ -685,6 +689,7 @@ class GenerationMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
+        output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         forced_bos_token_id: Optional[int] = None,
         forced_eos_token_id: Optional[int] = None,
@@ -1064,6 +1069,7 @@ class GenerationMixin:
                 pad_token_id=pad_token_id,
                 eos_token_id=eos_token_id,
                 output_scores=output_scores,
+                output_beam_scores=output_beam_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 **model_kwargs,
@@ -1104,6 +1110,7 @@ class GenerationMixin:
                 pad_token_id=pad_token_id,
                 eos_token_id=eos_token_id,
                 output_scores=output_scores,
+                output_beam_scores=output_beam_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 **model_kwargs,
@@ -1145,6 +1152,7 @@ class GenerationMixin:
                 stopping_criteria=stopping_criteria,
                 pad_token_id=pad_token_id,
                 eos_token_id=eos_token_id,
+                output_beam_scores=output_beam_scores,
                 output_scores=output_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
@@ -1629,6 +1637,7 @@ class GenerationMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
+        output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         **model_kwargs,
@@ -1757,6 +1766,7 @@ class GenerationMixin:
         decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
         cross_attentions = () if (return_dict_in_generate and output_attentions) else None
         decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+        beam_scores_output = () if (return_dict_in_generate and output_beam_scores) else None
 
         # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
         if return_dict_in_generate and self.config.is_encoder_decoder:
@@ -1853,6 +1863,8 @@ class GenerationMixin:
                 eos_token_id=eos_token_id,
             )
             beam_scores = beam_outputs["next_beam_scores"]
+            if beam_scores_output is not None:
+                beam_scores_output += (beam_scores,)
             beam_next_tokens = beam_outputs["next_beam_tokens"]
             beam_idx = beam_outputs["next_beam_indices"]
 
@@ -1896,6 +1908,7 @@ class GenerationMixin:
                     decoder_attentions=decoder_attentions,
                     cross_attentions=cross_attentions,
                     decoder_hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
             else:
                 return BeamSearchDecoderOnlyOutput(
@@ -1904,6 +1917,7 @@ class GenerationMixin:
                     scores=scores,
                     attentions=decoder_attentions,
                     hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
         else:
             return sequence_outputs["sequences"]
@@ -1921,6 +1935,7 @@ class GenerationMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
+        output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         **model_kwargs,
@@ -2059,6 +2074,7 @@ class GenerationMixin:
         decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
         cross_attentions = () if (return_dict_in_generate and output_attentions) else None
         decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+        beam_scores_output = () if (return_dict_in_generate and output_beam_scores) else None
 
         # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
         if return_dict_in_generate and self.config.is_encoder_decoder:
@@ -2155,6 +2171,8 @@ class GenerationMixin:
                 eos_token_id=eos_token_id,
             )
             beam_scores = beam_outputs["next_beam_scores"]
+            if beam_scores_output is not None:
+                beam_scores_output += (beam_scores,)
             beam_next_tokens = beam_outputs["next_beam_tokens"]
             beam_idx = beam_outputs["next_beam_indices"]
 
@@ -2198,6 +2216,7 @@ class GenerationMixin:
                     decoder_attentions=decoder_attentions,
                     cross_attentions=cross_attentions,
                     decoder_hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
             else:
                 return BeamSampleDecoderOnlyOutput(
@@ -2206,6 +2225,7 @@ class GenerationMixin:
                     scores=scores,
                     attentions=decoder_attentions,
                     hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
         else:
             return sequence_outputs["sequences"]
@@ -2222,6 +2242,7 @@ class GenerationMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
+        output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         **model_kwargs,
@@ -2353,6 +2374,7 @@ class GenerationMixin:
         decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
         cross_attentions = () if (return_dict_in_generate and output_attentions) else None
         decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+        beam_scores_output = () if (return_dict_in_generate and output_beam_scores) else None
 
         # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
         if return_dict_in_generate and self.config.is_encoder_decoder:
@@ -2498,6 +2520,9 @@ class GenerationMixin:
                         else (outputs.hidden_states,)
                     )
 
+                if beam_scores_output is not None:
+                    beam_scores_output  += (beam_scores.clone(),)
+
             input_ids = torch.cat([input_ids, current_tokens.unsqueeze(-1)], dim=-1)
 
             model_kwargs = self._update_model_kwargs_for_generation(
@@ -2538,6 +2563,7 @@ class GenerationMixin:
                     decoder_attentions=decoder_attentions,
                     cross_attentions=cross_attentions,
                     decoder_hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
             else:
                 return BeamSearchDecoderOnlyOutput(
@@ -2546,6 +2572,7 @@ class GenerationMixin:
                     scores=scores,
                     attentions=decoder_attentions,
                     hidden_states=decoder_hidden_states,
+                    beam_scores=beam_scores_output,
                 )
         else:
             return sequence_outputs["sequences"]
