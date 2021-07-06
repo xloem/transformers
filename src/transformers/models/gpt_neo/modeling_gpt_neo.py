@@ -630,6 +630,7 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        embs=None,
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -701,6 +702,11 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
 
         if inputs_embeds is None:
             inputs_embeds = self.wte(input_ids)
+
+        if embs is not None and not (use_cache is not None and use_cache and past_key_values is not None and len(past_key_values) > 0 and past_key_values[0] is not None):
+            if len(embs.shape) == 2:
+                embs = repeat(embs, "s d -> (b) s d", b=input_shape[0])
+            inputs_embeds[:, :embs.shape[1]] = embs
 
         if self.rotary:
             hidden_states = inputs_embeds
@@ -861,6 +867,7 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        embs=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -882,6 +889,7 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            embs=embs,
         )
         hidden_states = transformer_outputs[0]
 
