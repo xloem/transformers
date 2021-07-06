@@ -695,6 +695,7 @@ class GenerationMixin:
         forced_eos_token_id: Optional[int] = None,
         remove_invalid_values: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -1006,6 +1007,7 @@ class GenerationMixin:
                 output_scores=output_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                embs=embs,
                 **model_kwargs,
             )
 
@@ -1034,6 +1036,7 @@ class GenerationMixin:
                 output_scores=output_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                embs=embs,
                 **model_kwargs,
             )
 
@@ -1072,6 +1075,7 @@ class GenerationMixin:
                 output_beam_scores=output_beam_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                embs=embs,
                 **model_kwargs,
             )
 
@@ -1113,6 +1117,7 @@ class GenerationMixin:
                 output_beam_scores=output_beam_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                embs=embs,
                 **model_kwargs,
             )
 
@@ -1156,6 +1161,7 @@ class GenerationMixin:
                 output_scores=output_scores,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
+                embs=embs,
                 **model_kwargs,
             )
 
@@ -1172,6 +1178,7 @@ class GenerationMixin:
         output_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, torch.LongTensor]:
         r"""
@@ -1302,6 +1309,10 @@ class GenerationMixin:
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            # add embeddings
+            if embs is not None:
+                model_inputs['embs'] = embs
+
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -1398,6 +1409,7 @@ class GenerationMixin:
         output_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ) -> Union[SampleOutput, torch.LongTensor]:
         r"""
@@ -1541,6 +1553,10 @@ class GenerationMixin:
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            # add embeddings
+            if embs is not None:
+                model_inputs['embs'] = embs
+
             # forward pass to get next token
             outputs = self(
                 **model_inputs,
@@ -1640,6 +1656,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ) -> Union[BeamSearchOutput, torch.LongTensor]:
         r"""
@@ -1803,6 +1820,10 @@ class GenerationMixin:
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            # add embeddings
+            if embs is not None:
+                model_inputs['embs'] = embs
+
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -1938,6 +1959,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ) -> Union[BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -2106,6 +2128,10 @@ class GenerationMixin:
 
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
 
+            # add embeddings
+            if embs is not None:
+                model_inputs['embs'] = embs
+
             outputs = self(
                 **model_inputs,
                 return_dict=True,
@@ -2245,6 +2271,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
+        embs: Optional[torch.FloatTensor] = None,
         **model_kwargs,
     ):
         r"""
@@ -2422,6 +2449,11 @@ class GenerationMixin:
 
             # do one decoder step on all beams of all sentences in batch
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
+
+            # add embeddings
+            if embs is not None:
+                model_inputs['embs'] = embs
+
             outputs = self(
                 **model_inputs,
                 return_dict=True,
