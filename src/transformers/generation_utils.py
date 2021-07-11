@@ -525,7 +525,7 @@ class GenerationMixin:
         )
 
     def _get_logits_warper(
-        self, top_k: int = None, top_p: float = None, tfs: float = None, temperature: float = None, num_beams: int = None
+        self, top_k: int = None, top_p: float = None, tfs: float = None, temperature: float = None, num_beams: int = None, order: Tuple[int, int, int, int] = None
     ) -> LogitsProcessorList:
         """
         This class returns a :obj:`~transformers.LogitsProcessorList` list object that contains all relevant
@@ -538,19 +538,43 @@ class GenerationMixin:
         tfs = tfs
         temperature = temperature if temperature is not None else self.config.temperature
         # instantiate warpers list
-        warpers = LogitsProcessorList()
+        warpers = []
 
         # the following idea is largely copied from this PR: https://github.com/huggingface/transformers/pull/5420/files
         # all samplers can be found in `generation_utils_samplers.py`
         if temperature is not None and temperature != 1.0:
             warpers.append(TemperatureLogitsWarper(temperature))
+        else:
+            warpers.append(None)
+
         if top_k is not None and top_k != 0:
             warpers.append(TopKLogitsWarper(top_k=top_k, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
+        else:
+            warpers.append(None)
+
         if top_p is not None and top_p < 1.0:
             warpers.append(TopPLogitsWarper(top_p=top_p, min_tokens_to_keep=(2 if num_beams > 1 else 1)))
+        else:
+            warpers.append(None)
+
         if tfs is not None and tfs < 1.0:
             warpers.append(TailFreeSamplingLogitsWarper(threshold=tfs))
-        return warpers
+        else:
+            warpers.append(None)
+
+        if order is not None and len(order) == 4 and all([x in (0,1,2,3) for x in order]):
+            reordered = []
+            for i in order:
+                reordered.append(warpers[i])
+            warpers = reordered
+
+        warpers = list(filter(lambda x: x is not None, warpers))
+
+        lpl = LogitsProcessorList()
+        for warper in warpers:
+            lpl.append(warper)
+
+        return lpl
 
     def _get_logits_processor(
         self,
@@ -695,7 +719,8 @@ class GenerationMixin:
         forced_eos_token_id: Optional[int] = None,
         remove_invalid_values: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
+        order: Tuple[int, int, int, int] = None,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, SampleOutput, BeamSearchOutput, BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -1014,7 +1039,7 @@ class GenerationMixin:
         elif is_sample_gen_mode:
             # get probability distribution warper
             logits_warper = self._get_logits_warper(
-                top_k=top_k, top_p=top_p, tfs=tfs, temperature=temperature, num_beams=num_beams
+                top_k=top_k, top_p=top_p, tfs=tfs, temperature=temperature, num_beams=num_beams, order=order
             )
 
             # expand input_ids with `num_return_sequences` additional sequences per batch
@@ -1081,7 +1106,7 @@ class GenerationMixin:
 
         elif is_beam_sample_gen_mode:
             logits_warper = self._get_logits_warper(
-                top_k=top_k, top_p=top_p, tfs=tfs, temperature=temperature, num_beams=num_beams
+                top_k=top_k, top_p=top_p, tfs=tfs, temperature=temperature, num_beams=num_beams, order=order
             )
 
             batch_size = input_ids.shape[0] * num_return_sequences
@@ -1178,7 +1203,7 @@ class GenerationMixin:
         output_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
         **model_kwargs,
     ) -> Union[GreedySearchOutput, torch.LongTensor]:
         r"""
@@ -1409,7 +1434,7 @@ class GenerationMixin:
         output_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
         **model_kwargs,
     ) -> Union[SampleOutput, torch.LongTensor]:
         r"""
@@ -1656,7 +1681,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
         **model_kwargs,
     ) -> Union[BeamSearchOutput, torch.LongTensor]:
         r"""
@@ -1959,7 +1984,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
         **model_kwargs,
     ) -> Union[BeamSampleOutput, torch.LongTensor]:
         r"""
@@ -2271,7 +2296,7 @@ class GenerationMixin:
         output_beam_scores: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
-        embs: Optional[torch.FloatTensor] = None,
+        embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
         **model_kwargs,
     ):
         r"""
