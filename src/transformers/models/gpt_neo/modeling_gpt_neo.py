@@ -704,9 +704,10 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
             inputs_embeds = self.wte(input_ids)
 
         if embs is not None and not (use_cache is not None and use_cache and past_key_values is not None and len(past_key_values) > 0 and past_key_values[0] is not None):
-            if len(embs.shape) == 2:
-                embs = repeat(embs, "s d -> (b) s d", b=input_shape[0])
-            inputs_embeds[:, :embs.shape[1]] = embs
+            for pos, emb in embs:
+                if len(emb.shape) == 2:
+                    emb = repeat(emb, "s d -> (b) s d", b=input_shape[0])
+                inputs_embeds[:, pos:pos+emb.shape[1]] = emb
 
         if self.rotary:
             hidden_states = inputs_embeds
