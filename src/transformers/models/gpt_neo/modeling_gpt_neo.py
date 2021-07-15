@@ -704,10 +704,13 @@ class GPTNeoModel(GPTNeoPreTrainedModel):
             inputs_embeds = self.wte(input_ids)
 
         if embs is not None and not (use_cache is not None and use_cache and past_key_values is not None and len(past_key_values) > 0 and past_key_values[0] is not None):
+            offset = 0
             for pos, emb in embs:
+                pos += offset
                 if len(emb.shape) == 2:
                     emb = repeat(emb, "s d -> (b) s d", b=input_shape[0])
                 inputs_embeds[:, pos:pos+emb.shape[1]] = emb
+                offset += emb.shape[1]
 
         if self.rotary:
             hidden_states = inputs_embeds
@@ -846,6 +849,26 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
             "attention_mask": attention_mask,
             "token_type_ids": token_type_ids,
         }
+
+    def prep_for_embs(self, ids, embs):
+        if embs is None:
+            return ids
+        embs = sorted(embs, key=lambda x: x[0])
+        offset = 0
+        for n, emb in embs:
+            emb_len = emb.shape[0]
+            if len(emb.shape) == 3:
+              emb_len = emb.shape[1]
+            filler = torch.full((ids.shape[0], emb_len), 50256).to(ids.device).long()
+            n += offset
+            if n == 0:
+                ids = torch.cat((filler, ids), dim=1)
+            elif n >= len(ids[0]):
+                ids = torch.cat((ids, filler), dim=1)
+            else:
+                ids = torch.cat((ids[:, 0:n], filler, ids[:, n:]), dim=1)
+            offset += emb_len
+        return ids
 
     @add_start_docstrings_to_model_forward(GPT_NEO_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
