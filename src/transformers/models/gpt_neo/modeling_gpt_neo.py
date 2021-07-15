@@ -858,7 +858,7 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
         for n, emb in embs:
             emb_len = emb.shape[0]
             if len(emb.shape) == 3:
-              emb_len = emb.shape[1]
+                emb_len = emb.shape[1]
             filler = torch.full((ids.shape[0], emb_len), 50256).to(ids.device).long()
             n += offset
             if n == 0:
@@ -868,6 +868,22 @@ class GPTNeoForCausalLM(GPTNeoPreTrainedModel):
             else:
                 ids = torch.cat((ids[:, 0:n], filler, ids[:, n:]), dim=1)
             offset += emb_len
+        return ids
+
+    def remove_embs_padding(self, ids, embs):
+        if embs is None:
+            return ids
+        embs = sorted(embs, key=lambda x: x[0])
+        for n, emb in embs:
+            emb_len = emb.shape[0]
+            if len(emb.shape) == 3:
+                emb_len = emb.shape[1]
+            if n == 0:
+                ids = ids[:, emb_len:]
+            elif n >= len(ids[0]):
+                ids = ids[:, :-emb_len]
+            else:
+                ids = torch.cat((ids[:, 0:n], ids[:, n+emb_len:]), dim=1)
         return ids
 
     @add_start_docstrings_to_model_forward(GPT_NEO_INPUTS_DOCSTRING)
