@@ -151,6 +151,7 @@ class SampleDecoderOnlyOutput(ModelOutput):
     scores: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    nonzero_probs: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @dataclass
@@ -194,6 +195,7 @@ class SampleEncoderDecoderOutput(ModelOutput):
     decoder_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     cross_attentions: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     decoder_hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
+    nonzero_probs: Optional[Tuple[torch.FloatTensor]] = None
 
 
 @dataclass
@@ -716,6 +718,7 @@ class GenerationMixin:
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
         output_beam_scores: Optional[bool] = None,
+        output_nonzero_probs: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         forced_bos_token_id: Optional[int] = None,
         forced_eos_token_id: Optional[int] = None,
@@ -926,6 +929,7 @@ class GenerationMixin:
 
         output_scores = output_scores if output_scores is not None else self.config.output_scores
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_nonzero_probs = True if output_nonzero_probs is not None and output_nonzero_probs else False
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -1062,6 +1066,7 @@ class GenerationMixin:
                 pad_token_id=pad_token_id,
                 eos_token_id=eos_token_id,
                 output_scores=output_scores,
+                output_nonzero_probs=output_nonzero_probs,
                 return_dict_in_generate=return_dict_in_generate,
                 synced_gpus=synced_gpus,
                 embs=embs,
@@ -1435,6 +1440,7 @@ class GenerationMixin:
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_scores: Optional[bool] = None,
+        output_nonzero_probs: Optional[bool] = None,
         return_dict_in_generate: Optional[bool] = None,
         synced_gpus: Optional[bool] = None,
         embs: Optional[List[Tuple[int, torch.FloatTensor]]] = None,
@@ -1540,6 +1546,7 @@ class GenerationMixin:
         eos_token_id = eos_token_id if eos_token_id is not None else self.config.eos_token_id
         output_scores = output_scores if output_scores is not None else self.config.output_scores
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_nonzero_probs = True if output_nonzero_probs is not None and output_nonzero_probs else False
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -1552,6 +1559,7 @@ class GenerationMixin:
         decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
         cross_attentions = () if (return_dict_in_generate and output_attentions) else None
         decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
+        nonzero_probs = () if (return_dict_in_generate and output_nonzero_probs) else None
 
         # if model is an encoder-decoder, retrieve encoder attention weights and hidden states
         if return_dict_in_generate and self.config.is_encoder_decoder:
@@ -1613,7 +1621,6 @@ class GenerationMixin:
                     )
                     if self.config.is_encoder_decoder:
                         cross_attentions += (outputs.cross_attentions,)
-
                 if output_hidden_states:
                     decoder_hidden_states += (
                         (outputs.decoder_hidden_states,)
@@ -1623,6 +1630,8 @@ class GenerationMixin:
 
             # sample
             probs = F.softmax(next_token_scores, dim=-1)
+            if return_dict_in_generate and output_nonzero_probs:
+                nonzero_probs += ((probs > 0).sum(dim=1),)
             next_tokens = torch.multinomial(probs.float(), num_samples=1).squeeze(1)
 
             # finished sentences should have their next token be a padding token
@@ -1658,6 +1667,7 @@ class GenerationMixin:
                     decoder_attentions=decoder_attentions,
                     cross_attentions=cross_attentions,
                     decoder_hidden_states=decoder_hidden_states,
+                    nonzero_probs=nonzero_probs,
                 )
             else:
                 return SampleDecoderOnlyOutput(
@@ -1665,6 +1675,7 @@ class GenerationMixin:
                     scores=scores,
                     attentions=decoder_attentions,
                     hidden_states=decoder_hidden_states,
+                    nonzero_probs=nonzero_probs,
                 )
         else:
             return input_ids
