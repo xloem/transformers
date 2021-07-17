@@ -583,6 +583,7 @@ class GenerationMixin:
         repetition_penalty_slope: float,
         repetition_penalty_frequency: float,
         repetition_penalty_presence: float,
+        repetition_penalty_whitelist: List[int],
         no_repeat_ngram_size: int,
         encoder_no_repeat_ngram_size: int,
         encoder_input_ids: torch.LongTensor,
@@ -641,7 +642,7 @@ class GenerationMixin:
         if logit_bias is not None:
             processors.append(LogitBiasProcessor(logit_bias))
         if (repetition_penalty is not None and repetition_penalty > 1.0) or (repetition_penalty_frequency is not None and repetition_penalty_frequency > 0.0) or (repetition_penalty_presence is not None and repetition_penalty_presence > 0.0):
-            processors.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty, m=repetition_penalty_slope, penalize_last=repetition_penalty_range, alpha_frequency=repetition_penalty_frequency, alpha_presence=repetition_penalty_presence))
+            processors.append(RepetitionPenaltyLogitsProcessor(penalty=repetition_penalty, m=repetition_penalty_slope, penalize_last=repetition_penalty_range, alpha_frequency=repetition_penalty_frequency, alpha_presence=repetition_penalty_presence, whitelist=repetition_penalty_whitelist))
         if no_repeat_ngram_size is not None and no_repeat_ngram_size > 0:
             processors.append(NoRepeatNGramLogitsProcessor(no_repeat_ngram_size))
         if encoder_no_repeat_ngram_size is not None and encoder_no_repeat_ngram_size > 0:
@@ -695,6 +696,7 @@ class GenerationMixin:
         repetition_penalty_slope: Optional[float] = 3.33,
         repetition_penalty_frequency: Optional[float] = None,
         repetition_penalty_presence: Optional[float] = None,
+        repetition_penalty_whitelist: List[int] = None,
         bad_words_ids: Optional[Iterable[int]] = None,
         logit_bias: Optional[List[Tuple[int, float]]] = None,
         bos_token_id: Optional[int] = None,
@@ -997,6 +999,7 @@ class GenerationMixin:
             repetition_penalty_slope=repetition_penalty_slope,
             repetition_penalty_frequency=repetition_penalty_frequency,
             repetition_penalty_presence=repetition_penalty_presence,
+            repetition_penalty_whitelist=repetition_penalty_whitelist,
             no_repeat_ngram_size=no_repeat_ngram_size,
             encoder_no_repeat_ngram_size=encoder_no_repeat_ngram_size,
             encoder_input_ids=encoder_input_ids,
