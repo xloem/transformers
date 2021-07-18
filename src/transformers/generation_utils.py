@@ -564,7 +564,7 @@ class GenerationMixin:
         else:
             warpers.append(None)
 
-        if order is not None and len(order) == 4 and all([x in (0,1,2,3) for x in order]):
+        if order is not None and len(order) == 4 and all([x in order for x in (0,1,2,3)]):
             reordered = []
             for i in order:
                 reordered.append(warpers[i])
