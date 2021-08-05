@@ -11,6 +11,8 @@ This branch has the following patches:
 * [support](#gpt-j-6b) for GPT-J 6B
 * support for [openai](https://beta.openai.com/docs/api-reference/parameter-details) repetition penalty through parameters repetition_penalty_frequency and repetition_penalty_presence (affected by range, but not slope)
 * new config parameters for the gptneo flag: model_device (None for auto, "cpu", "cuda", "cuda:1", ...) and model_dtype ("fp32", "fp16", "bf16")
+* loading of model checkpoints in split format (m.pt and b*.pt)
+* "load_device" config.json option that allows specifying on which device checkpoints should be loaded using torch.load's map_location
 
 Protip: Make sure to call model.generate with `use_cache=True`.
 
@@ -72,37 +74,7 @@ model = GPTNeoForCausalLM.from_pretrained(model_name)
 save(model)
 ```
 
-Then load it on the target system like this:
-
-```python
-import collections
-
-class Checkpoint(collections.MutableMapping):
-    def __init__(self):
-        self.checkpoint = torch.load("chpt/m.pt")
-    def __len__(self):
-        return len(self.checkpoint)
-    def __getitem__(self, key):
-        return torch.load(self.checkpoint[key])
-    def __setitem__(self, key, value):
-        return
-    def __delitem__(self, key, value):
-        return
-    def keys(self):
-        return self.checkpoint.keys()
-    def __iter__(self):
-        for key in self.checkpoint:
-            yield (key, self.__getitem__(key))
-    def __copy__(self):
-        return Checkpoint()
-    def copy(self):
-        return Checkpoint()
-
-model_name = "EleutherAI/gpt-neo-2.7B"
-from transformers import GPTNeoForCausalLM, AutoConfig
-config = AutoConfig.from_pretrained(model_name)
-model = GPTNeoForCausalLM.from_pretrained(pretrained_model_name_or_path=None, config=config, state_dict=Checkpoint())
-```
+Then delete the pytorch_model.bin from the folder with the config.json and copy in the m.pt and all b*.pt files instead.
 
 ## GPT-J 6B
 
@@ -160,6 +132,8 @@ model = GPTNeoForCausalLM.from_pretrained(pretrained_model_name_or_path=None, co
 There is also an [alternative](https://gist.github.com/finetuneanon/7dd417a31338a63f219a49702e0550db) version of the conversion script that can run on colab within the regualr 12GB of RAM.
 
 GPT-J 6B is quite sensitive to repetition penalty. While gpt-neo can easily handle penalty values of 2 and above, this model starts generating strange text at about 1.3 repetition penalty.
+
+You can also just write a config.json file and put that and m.pt and b*.pt into a folder to load using GPTNeoForCausalLM.from_pretrained.
 
 ---
 
