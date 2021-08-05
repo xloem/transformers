@@ -35,6 +35,7 @@ from .file_utils import (
     FLAX_WEIGHTS_NAME,
     TF2_WEIGHTS_NAME,
     TF_WEIGHTS_NAME,
+    SPLIT_WEIGHTS_NAME,
     WEIGHTS_NAME,
     ModelOutput,
     PushToHubMixin,
@@ -48,6 +49,11 @@ from .generation_utils import GenerationMixin
 from .integrations import deepspeed_config, is_deepspeed_zero3_enabled
 from .utils import logging
 
+try:
+    from collections.abc import MutableMapping
+except ImportError:
+    from collections import MutableMapping
+from pathlib import Path
 
 logger = logging.get_logger(__name__)
 
@@ -407,6 +413,34 @@ class ModuleUtilsMixin:
 
         return 6 * self.estimate_tokens(input_dict) * self.num_parameters(exclude_embeddings=exclude_embeddings)
 
+
+class SplitCheckpoint(MutableMapping):
+    def __init__(self, chkpt_dir, device="cpu"):
+        self.device = device
+        if os.path.isfile(chkpt_dir):
+            self.chkpt_dir = Path(chkpt_dir).parent
+            self.checkpoint = torch.load(chkpt_dir)
+        else:
+            self.chkpt_dir = Path(chkpt_dir)
+            self.checkpoint = torch.load(str(chkpt_dir / Path("m.pt")))
+    def __len__(self):
+        return len(self.checkpoint)
+    def __getitem__(self, key):
+        path = self.chkpt_dir / Path(self.checkpoint[key]).name
+        return torch.load(str(path), map_location=self.device)
+    def __setitem__(self, key, value):
+        return
+    def __delitem__(self, key, value):
+        return
+    def keys(self):
+        return self.checkpoint.keys()
+    def __iter__(self):
+        for key in self.checkpoint:
+            yield (key, self.__getitem__(key))
+    def __copy__(self):
+        return SplitCheckpoint(self.chkpt_dir, device=self.device)
+    def copy(self):
+        return SplitCheckpoint(self.chkpt_dir, device=self.device)
 
 class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMixin):
     r"""
@@ -1077,6 +1111,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
             model_kwargs = kwargs
 
         # Load model
+        is_split = False
         if pretrained_model_name_or_path is not None:
             pretrained_model_name_or_path = str(pretrained_model_name_or_path)
             if os.path.isdir(pretrained_model_name_or_path):
@@ -1089,6 +1124,9 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 elif from_flax and os.path.isfile(os.path.join(pretrained_model_name_or_path, FLAX_WEIGHTS_NAME)):
                     # Load from a Flax checkpoint in priority if from_flax
                     archive_file = os.path.join(pretrained_model_name_or_path, FLAX_WEIGHTS_NAME)
+                elif os.path.isfile(os.path.join(pretrained_model_name_or_path, SPLIT_WEIGHTS_NAME)):
+                    archive_file = os.path.join(pretrained_model_name_or_path, SPLIT_WEIGHTS_NAME)
+                    is_split = True
                 elif os.path.isfile(os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)):
                     # Load from a PyTorch checkpoint
                     archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
@@ -1196,7 +1234,17 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         else:
             if state_dict is None:
                 try:
-                    state_dict = torch.load(resolved_archive_file, map_location="cpu")
+                    load_device = "cpu"
+                    try:
+                        load_device = getattr(config, "load_device")
+                    except:
+                        pass
+
+                    if is_split:
+                        state_dict = SplitCheckpoint(resolved_archive_file, device=load_device)
+                    else:
+                        state_dict = torch.load(resolved_archive_file, map_location=load_device)
+
                 except Exception:
                     raise OSError(
                         f"Unable to load weights from pytorch checkpoint file for '{pretrained_model_name_or_path}' "
