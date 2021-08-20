@@ -328,7 +328,7 @@ class GPTNeoSelfAttention(nn.Module, GPTNeoAttentionMixin):
                 query = torch.cat([q_rot, q_pass], dim=-1)
             elif self.rotary:
                 key = apply_rotary_pos_emb(key, (self.sin, self.cos), offset=offset).to(key.dtype)
-                query = apply_rotary_pos_emb(query, (self.sin, self.cos), offset=offset).to(queue.dtype)
+                query = apply_rotary_pos_emb(query, (self.sin, self.cos), offset=offset).to(query.dtype)
             key = key.permute(0, 2, 1, 3)
             query = query.permute(0, 2, 1, 3)
 
