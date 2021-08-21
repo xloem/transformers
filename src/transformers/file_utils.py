@@ -1127,6 +1127,10 @@ def hf_bucket_url(
     """
     if subfolder is not None:
         filename = f"{subfolder}/{filename}"
+    if model_id.count('/') > 1:
+        model_org, model_name, subfolder = model_id.split('/', 2)
+        model_id = f"{model_org}/{model_name}"
+        filename = f"{subfolder}/{filename}"
 
     if mirror:
         endpoint = PRESET_MIRROR_DICT.get(mirror, mirror)

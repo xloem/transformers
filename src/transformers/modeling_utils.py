@@ -415,19 +415,35 @@ class ModuleUtilsMixin:
 
 
 class SplitCheckpoint(MutableMapping):
-    def __init__(self, chkpt_dir, device="cpu"):
+    def __init__(self, name_or_path, device="cpu", subfolder=None):
         self.device = device
-        if os.path.isfile(chkpt_dir):
-            self.chkpt_dir = Path(chkpt_dir).parent
-            self.checkpoint = torch.load(chkpt_dir)
+        localpath = Path(name_or_path)
+        if subfolder is not None:
+            localpath = localpath / subfolder
+        if os.path.isfile(localpath):
+            self.chkpt_dir = localpath.parent
+            self.remote = False
+        elif os.path.isfile(localpath / SPLIT_WEIGHTS_NAME):
+            self.chkpt_dir = localpath
+            self.checkpoint = torch.load(str(localpath / SPLIT_WEIGHTS_NAME))
+            self.remote = False
         else:
-            self.chkpt_dir = Path(chkpt_dir)
-            self.checkpoint = torch.load(str(chkpt_dir / Path("m.pt")))
+            self.modelname = name_or_path
+            self.chkpt_dir = subfolder
+            self.remote = True
+        self.checkpoint = self._load(SPLIT_WEIGHTS_NAME)
+    def _load(self, name, **kwparams):
+        if self.remote:
+            path = hf_bucket_url(self.modelname, name, subfolder=self.chkpt_dir)
+            path = cached_path(path)
+        else:
+            path = str(self.chkpt_dir / name)
+        return torch.load(path, **kwparams)
     def __len__(self):
         return len(self.checkpoint)
     def __getitem__(self, key):
-        path = self.chkpt_dir / Path(self.checkpoint[key]).name
-        return torch.load(str(path), map_location=self.device)
+        name = self.checkpoint[key].split('/')[-1]
+        return self._load(name, map_location=self.device)
     def __setitem__(self, key, value):
         return
     def __delitem__(self, key, value):
@@ -1110,11 +1126,17 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         else:
             model_kwargs = kwargs
 
+        config.name_or_path = pretrained_model_name_or_path
+        if config.is_split is None and '-split/' in (config.name_or_path + '/'):
+            config.is_split = True
+
         # Load model
-        is_split = False
         if pretrained_model_name_or_path is not None:
             pretrained_model_name_or_path = str(pretrained_model_name_or_path)
             if os.path.isdir(pretrained_model_name_or_path):
+                if config.subfolder is not None:
+                    pretrained_model_name_or_path = os.path.join(pretrained_model_name_or_path, config.subfolder)
+                config.is_split = False
                 if from_tf and os.path.isfile(os.path.join(pretrained_model_name_or_path, TF_WEIGHTS_NAME + ".index")):
                     # Load from a TF 1.0 checkpoint in priority if from_tf
                     archive_file = os.path.join(pretrained_model_name_or_path, TF_WEIGHTS_NAME + ".index")
@@ -1125,8 +1147,9 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                     # Load from a Flax checkpoint in priority if from_flax
                     archive_file = os.path.join(pretrained_model_name_or_path, FLAX_WEIGHTS_NAME)
                 elif os.path.isfile(os.path.join(pretrained_model_name_or_path, SPLIT_WEIGHTS_NAME)):
+                    # Load from a split PyTorch checkpoint
                     archive_file = os.path.join(pretrained_model_name_or_path, SPLIT_WEIGHTS_NAME)
-                    is_split = True
+                    config.is_split = True
                 elif os.path.isfile(os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)):
                     # Load from a PyTorch checkpoint
                     archive_file = os.path.join(pretrained_model_name_or_path, WEIGHTS_NAME)
@@ -1150,12 +1173,15 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                     filename = TF2_WEIGHTS_NAME
                 elif from_flax:
                     filename = FLAX_WEIGHTS_NAME
+                elif config.is_split:
+                    filename = SPLIT_WEIGHTS_NAME
                 else:
                     filename = WEIGHTS_NAME
 
                 archive_file = hf_bucket_url(
                     pretrained_model_name_or_path,
                     filename=filename,
+                    subfolder=config.subfolder,
                     revision=revision,
                     mirror=mirror,
                 )
@@ -1187,8 +1213,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 logger.info(f"loading weights file {archive_file} from cache at {resolved_archive_file}")
         else:
             resolved_archive_file = None
-
-        config.name_or_path = pretrained_model_name_or_path
 
         # Instantiate model.
         if is_deepspeed_zero3_enabled():
@@ -1240,8 +1264,8 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                     except:
                         pass
 
-                    if is_split:
-                        state_dict = SplitCheckpoint(resolved_archive_file, device=load_device)
+                    if config.is_split:
+                        state_dict = SplitCheckpoint(config.name_or_path, device=load_device, subfolder=config.subfolder)
                     else:
                         state_dict = torch.load(resolved_archive_file, map_location=load_device)
 

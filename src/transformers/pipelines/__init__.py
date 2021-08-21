@@ -381,7 +381,7 @@ def pipeline(
 
     # Infer the framework form the model
     if framework is None:
-        framework, model = infer_framework_from_model(model, targeted_task, revision=revision, task=task)
+        framework, model = infer_framework_from_model(model, targeted_task, revision=revision, task=task, **model_kwargs)
 
     task_class, model_class = targeted_task["impl"], targeted_task[framework]
 

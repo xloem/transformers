@@ -286,6 +286,8 @@ class PretrainedConfig(PushToHubMixin):
 
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
+        self.subfolder = kwargs.pop("subfolder", None)
+        self.is_split = kwargs.pop("is_split", None)
 
         # Drop the transformers version info
         self.transformers_version = kwargs.pop("transformers_version", None)
@@ -390,6 +392,9 @@ class PretrainedConfig(PushToHubMixin):
                 The specific model version to use. It can be a branch name, a tag name, or a commit id, since we use a
                 git-based system for storing models and other artifacts on huggingface.co, so ``revision`` can be any
                 identifier allowed by git.
+            subfolder (:obj:`str`, `optional`):
+                In case the relevant files are located inside a subfolder of the model repo on huggingface.co (e.g. for
+                facebook/rag-token-base), specify it here.
             return_unused_kwargs (:obj:`bool`, `optional`, defaults to :obj:`False`):
                 If :obj:`False`, then this function returns just the final configuration object.
 
@@ -458,6 +463,7 @@ class PretrainedConfig(PushToHubMixin):
         use_auth_token = kwargs.pop("use_auth_token", None)
         local_files_only = kwargs.pop("local_files_only", False)
         revision = kwargs.pop("revision", None)
+        subfolder = kwargs.pop("subfolder", None)
         from_pipeline = kwargs.pop("_from_pipeline", None)
         from_auto_class = kwargs.pop("_from_auto", False)
 
@@ -476,7 +482,7 @@ class PretrainedConfig(PushToHubMixin):
             config_file = pretrained_model_name_or_path
         else:
             config_file = hf_bucket_url(
-                pretrained_model_name_or_path, filename=CONFIG_NAME, revision=revision, mirror=None
+                pretrained_model_name_or_path, filename=CONFIG_NAME, revision=revision, subfolder=subfolder, mirror=None
             )
 
         try:
