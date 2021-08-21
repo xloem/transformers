@@ -479,7 +479,7 @@ class NoBadWordsLogitsProcessor(LogitsProcessor):
                 f"Each list in `bad_words_ids` has to be a list of positive integers, but is {bad_words_ids}."
             )
 
-        self.bad_words_ids = list(filter(lambda bad_token_seq: bad_token_seq != [eos_token_id], bad_words_ids))
+        self.bad_words_ids = bad_words_ids #list(filter(lambda bad_token_seq: bad_token_seq != [eos_token_id], bad_words_ids))
 
         for banned_token_seq in self.bad_words_ids:
             assert len(banned_token_seq) > 0, f"Banned words token sequences {bad_words_ids} cannot have an empty list"
