@@ -148,6 +148,8 @@ class PretrainedConfig(PushToHubMixin):
         - **remove_invalid_values** (:obj:`bool`, `optional`) -- Whether to remove possible `nan` and `inf` outputs of
           the model to prevent the generation method to crash. Note that using ``remove_invalid_values`` can slow down
           generation.
+        - **subfolder** (:obj:`str`, `optional`, defaults to :obj:`None`) -- In case the model files are located
+          inside a further subfolder relative to the config.json file (e.g. for NovelAI/genji-python-6B-split).
 
 
     Parameters for fine-tuning tasks
@@ -192,6 +194,7 @@ class PretrainedConfig(PushToHubMixin):
         - **tie_word_embeddings** (:obj:`bool`, `optional`, defaults to :obj:`True`) -- Whether the model's input and
           output word embeddings should be tied. Note that this is only relevant if the model has a output word
           embedding layer.
+        - **is_split** (:obj:`bool`, `optional`, defaults to :obj:`False`) -- Whether the model is stored in split format (m.pt and b*.pt)
 
     TensorFlow specific parameters
 
