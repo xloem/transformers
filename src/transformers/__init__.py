@@ -118,6 +118,7 @@ _import_structure = {
     ],
     "models": [],
     # Models
+    "models.rwkv2": ["RWKV2_PRETRAINED_CONFIG_ARCHIVE_MAP", "RWKV2Config", "RWKV2Tokenizer"],
     "models.albert": ["ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP", "AlbertConfig"],
     "models.auto": [
         "ALL_PRETRAINED_CONFIG_ARCHIVE_MAP",
@@ -480,6 +481,7 @@ except OptionalDependencyNotAvailable:
     ]
 else:
     # Fast tokenizers structure
+    _import_structure["models.rwkv2"].append("RWKV2TokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
     _import_structure["models.barthez"].append("BarthezTokenizerFast")
@@ -704,6 +706,22 @@ else:
     _import_structure["modeling_utils"] = ["PreTrainedModel"]
 
     # PyTorch models structure
+
+    _import_structure["models.rwkv2"].extend(
+        [
+            "RWKV2_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "RWKV2ForMaskedLM",
+            "RWKV2ForCausalLM",
+            "RWKV2ForMultipleChoice",
+            "RWKV2ForQuestionAnswering",
+            "RWKV2ForSequenceClassification",
+            "RWKV2ForTokenClassification",
+            "RWKV2Layer",
+            "RWKV2Model",
+            "RWKV2PreTrainedModel",
+            "load_tf_weights_in_rwkv2",
+        ]
+    )
     _import_structure["models.albert"].extend(
         [
             "ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST",
@@ -2658,6 +2676,7 @@ if TYPE_CHECKING:
         load_tf2_weights_in_pytorch_model,
     )
     from .models.albert import ALBERT_PRETRAINED_CONFIG_ARCHIVE_MAP, AlbertConfig
+    from .models.rwkv2 import RWKV2_PRETRAINED_CONFIG_ARCHIVE_MAP, RWKV2Config, RWKV2Tokenizer
     from .models.auto import (
         ALL_PRETRAINED_CONFIG_ARCHIVE_MAP,
         CONFIG_MAPPING,
@@ -2982,6 +3001,7 @@ if TYPE_CHECKING:
         from .utils.dummy_tokenizers_objects import *
     else:
         # Fast tokenizers imports
+        from .models.rwkv2 import RWKV2TokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -3164,6 +3184,20 @@ if TYPE_CHECKING:
         from .modeling_utils import PreTrainedModel
 
         # PyTorch model imports
+
+        from .models.rwkv2 import (
+            RWKV2_PRETRAINED_MODEL_ARCHIVE_LIST,
+            RWKV2ForMaskedLM,
+            RWKV2ForCausalLM,
+            RWKV2ForMultipleChoice,
+            RWKV2ForQuestionAnswering,
+            RWKV2ForSequenceClassification,
+            RWKV2ForTokenClassification,
+            RWKV2Layer,
+            RWKV2Model,
+            RWKV2PreTrainedModel,
+            load_tf_weights_in_rwkv2,
+        )
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             AlbertForMaskedLM,
