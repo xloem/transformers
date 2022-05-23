@@ -21,7 +21,7 @@ from ...utils import logging
 logger = logging.get_logger(__name__)
 
 RWKV2_PRETRAINED_CONFIG_ARCHIVE_MAP = {
-    "rwkv-v2": "https://huggingface.co/rwkv-v2/resolve/main/config.json",
+    "rwkv2": "https://huggingface.co/rwkv-v2/resolve/main/config.json",
     # See all RWKV2 models at https://huggingface.co/models?filter=rwkv2
 }
 
@@ -80,7 +80,7 @@ class RWKV2Config(PretrainedConfig):
         time_first
     """
 
-    model_type = "rwkv2-gpt"
+    model_type = "rwkv2"
     attribute_map = {
         "hidden_size": "n_embd",
         "num_hidden_layers": "n_layer",

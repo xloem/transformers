@@ -1,5 +1,6 @@
 # coding=utf-8
-# Copyright 2022 BlinkDL and RWKV Core Team The HuggingFace Inc. team. All rights reserved.
+# Copyright 2022 Bo PENG and the RWKV Dev Team and The HuggingFace 
+# Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +45,8 @@ from ...utils import (
 )
 from ...modeling_outputs import (
     CausalLMOutput,
+    CausalLMOutputWithPast,
+    BaseModelOutputWithPast,
 #    BaseModelOutputWithPastAndCrossAttentions,
 #    CausalLMOutputWithCrossAttentions,
 #    MaskedLMOutput,
@@ -669,17 +672,25 @@ class RWKV2OnlyMLMHead(nn.Module):
 
 
 class RWKV2_ChannelMix(nn.Module):
-    def __init__(self, layer_id):
+    def __init__(self, config, layer_id):
         super().__init__()
         self.layer_id = layer_id
 
-        self.time_shift = nn.ZeroPad2d((0,0,1,-1))
-        self.time_mix = nn.Parameter(torch.ones(1, 1, n_embd))
+        self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
 
-        hidden_sz = 4 * n_embd
-        self.key = nn.Linear(n_embd, hidden_sz, bias=False)
-        self.receptance = nn.Linear(n_embd, n_embd, bias=False)
-        self.value = nn.Linear(hidden_sz, n_embd, bias=False)
+        with torch.no_grad():  # init to "shift half of the channels"
+            x = torch.ones(1, 1, config.n_embd)
+            for i in range(config.n_embd // 2):
+                x[0, 0, i] = 0
+        self.time_mix = nn.Parameter(x)
+
+        hidden_sz = 4 * config.n_embd
+        self.key = nn.Linear(config.n_embd, hidden_sz, bias=False)
+        self.receptance = nn.Linear(config.n_embd, config.n_embd, bias=False)
+        self.value = nn.Linear(hidden_sz, config.n_embd, bias=False)
+
+        self.value.scale_init = 0
+        self.receptance.scale_init = 0
 
     def forward(self, x):
         x = x * self.time_mix + self.time_shift(x) * (1 - self.time_mix)
@@ -687,27 +698,63 @@ class RWKV2_ChannelMix(nn.Module):
         k = self.key(x)
         k = torch.square(torch.relu(k))
         kv = self.value(k)
-        
+
         rkv = torch.sigmoid(self.receptance(x)) * kv
         return rkv
 
 
 class RWKV2_TimeMix(nn.Module):
-    def __init__(self, layer_id):
+    def __init__(self, config, layer_id):
         super().__init__()
         self.layer_id = layer_id
-        self.time_decay = nn.Parameter(torch.ones(n_embd, 1))
-        self.time_curve = torch.tensor([-(ctx_len - 2 - i) for i in range(ctx_len-1)]).unsqueeze(0)
-        self.time_first = nn.Parameter(torch.ones(n_embd, 1) * math.log(0.3))
-        
-        self.time_shift = nn.ZeroPad2d((0,0,1,-1))
-        self.time_mix = nn.Parameter(torch.ones(1,1,n_embd))
+        self.ctx_len = config.ctx_len
+        self.n_embd = config.n_embd
 
-        self.key = nn.Linear(n_embd, n_embd, bias=False)
-        self.value = nn.Linear(n_embd, n_embd, bias=False)
-        self.receptance = nn.Linear(n_embd, n_embd, bias=False)
+        attn_sz = config.n_embd
 
-        self.output = nn.Linear(n_embd, n_embd, bias=False)
+        ############# fancy init of time_w curves ###################################
+        f1_begin = 3.0
+        f1_end = 1.2
+        f2_begin = 0.65
+        f2_end = 0.4
+        with torch.no_grad():  # initial time_w curves for better convergence
+            decay_speed = torch.ones(attn_sz, 1)
+            first_sa_layer_id = 1
+            for h in range(attn_sz):
+                f1 = f1_begin + (layer_id-first_sa_layer_id) / \
+                    (config.n_layer-1-first_sa_layer_id) * (f1_end - f1_begin)
+                f2 = f2_begin + (layer_id-first_sa_layer_id) / \
+                    (config.n_layer-1-first_sa_layer_id) * (f2_end - f2_begin)
+                if layer_id == first_sa_layer_id:
+                    f1 += 0.5
+                if layer_id == config.n_layer-2:
+                    f2 = 0.4
+                if layer_id == config.n_layer-1:
+                    f2 = 0.37
+                decay_speed[h][0] = math.pow(f2, h / (attn_sz-1) * 7) * f1
+        self.time_decay = nn.Parameter(torch.log(decay_speed)) # will use exp(self.time_decay) to ensure time_decay > 0
+        self.time_curve = torch.tensor(
+            [-(config.ctx_len - 2 - i) for i in range(config.ctx_len-1)]).unsqueeze(0)
+        self.time_curve = self.time_curve.to('cuda')
+        self.time_first = nn.Parameter(torch.ones(attn_sz, 1) * math.log(0.3))
+        #############################################################################
+
+        self.time_shift = nn.ZeroPad2d((0, 0, 1, -1))
+        with torch.no_grad():  # init to "shift half of the channels"
+            ww = torch.ones(1, 1, config.n_embd)
+            for i in range(config.n_embd // 2):
+                ww[0, 0, i] = 0
+        self.time_mix = nn.Parameter(ww)
+
+        self.key = nn.Linear(config.n_embd, attn_sz, bias=False)
+        self.value = nn.Linear(config.n_embd, attn_sz, bias=False)
+        self.receptance = nn.Linear(config.n_embd, attn_sz, bias=False)
+
+        self.output = nn.Linear(attn_sz, config.n_embd, bias=False)
+
+        self.key.scale_init = 0
+        self.receptance.scale_init = 0
+        self.output.scale_init = 0
 
     def forward(self, x):
         B, T, C = x.size()
@@ -718,38 +765,47 @@ class RWKV2_TimeMix(nn.Module):
         v = self.value(x).transpose(-1, -2)
         r = self.receptance(x)
 
-        k = torch.clamp(k, max=60)
+        # RWKV_K_CLAMP can be removed if the CUDA kernel substracts the correct k_max for each k (I will do this later)
+        k = torch.clamp(k, max=RWKV_K_CLAMP)
         k = torch.exp(k)
-
         kv = k * v
 
-        self.time_w = torch.cat([torch.exp(self.time_decay) * self.time_curve, self.time_first], dim=-1)
+        self.time_w = torch.cat(
+            [torch.exp(self.time_decay) * self.time_curve, self.time_first], dim=-1)
         w = torch.exp(self.time_w)
-        
-        w = w[:,-T:].unsqueeze(1)
-        wkv = F.conv1d(nn.ZeroPad2d((T-1, 0, 0, 0))(kv), w, groups=C)
-        wk = F.conv1d(nn.ZeroPad2d((T-1, 0, 0, 0))(k), w, groups=C) + 1e-9
+
+        wkv = TimeX.apply(w, kv, B, C, T, 0)
+        # RWKV_K_EPS can be removed if the CUDA kernel sets 0/0 = 0 (I will do this later)
+        wk = TimeX.apply(w, k, B, C, T, RWKV_K_EPS)
 
         rwkv = torch.sigmoid(r) * (wkv / wk).transpose(-1, -2)
-        
         rwkv = self.output(rwkv)
         return rwkv
 
 
+
 class RWKV2_Block(nn.Module):
-    def __init__(self, layer_id):
+    def __init__(self, config, layer_id):
         super().__init__()
+        self.config = config
         self.layer_id = layer_id
 
-        self.ln1 = nn.LayerNorm(n_embd)
-        self.ln2 = nn.LayerNorm(n_embd)
-        
-        self.att = RWKV2_TimeMix(layer_id)
-        self.ffn = RWKV2_ChannelMix(layer_id)
+        self.ln1 = nn.LayerNorm(config.n_embd)
+        self.ln2 = nn.LayerNorm(config.n_embd)
+
+        if self.layer_id == 0 and self.config.model_type == 'RWKV-ffnPre':
+            self.ffnPre = RWKV2_ChannelMix(config, layer_id+1000)
+        else:
+            self.att = RWKV2_TimeMix(config, layer_id)
+
+        self.ffn = RWKV2_ChannelMix(config, layer_id)
 
     def forward(self, x):
         x = self.ln1(x)
-        x = x + self.att(x)
+        if self.layer_id == 0 and self.config.model_type == 'RWKV-ffnPre':
+            x = x + self.ffnPre(x)  # better in some cases
+        else:
+            x = x + self.att(x)
         x = self.ln2(x)
         x = x + self.ffn(x)
         return x

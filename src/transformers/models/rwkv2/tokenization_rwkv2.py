@@ -38,7 +38,7 @@ PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
 
 class RWKV2Tokenizer(PreTrainedTokenizer):
     """
-    Construct a RWKV2 tokenizer. Based on byte-level Byte-Pair-Encoding.
+    Construct a RWKV2 tokenizer. Based on character-level input.
 
     Args:
         vocab_file (`str`):
@@ -48,12 +48,12 @@ class RWKV2Tokenizer(PreTrainedTokenizer):
     vocab_files_names = VOCAB_FILES_NAMES
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
-    model_input_names = ["input_ids", "attention_mask"]
+    model_input_names = ["input_ids"]
 
     def __init__(
             self,
             vocab_file,
-            unk_token="<|endoftext|>",
+            unk_token="<|unk|>",
             bos_token="<|endoftext|>",
             eos_token="<|endoftext|>",
             **kwargs
@@ -63,14 +63,15 @@ class RWKV2Tokenizer(PreTrainedTokenizer):
         unk_token = AddedToken(unk_token, lstrip=False, rstrip=False) if isinstance(unk_token, str) else unk_token
         super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
 
-        "Initialisation"
+        """Initialisation"""
 
     @property
     def vocab_size(self):
-        "Returns vocab size"
+        """Returns vocab size"""
+        return 
 
     def get_vocab(self):
-        "Returns vocab as a dict"
+        """Returns vocab as a dict"""
 
     def _tokenize(self, text):
         """ Returns a tokenized string. """
@@ -177,75 +178,3 @@ class RWKV2Tokenizer(PreTrainedTokenizer):
         if (is_split_into_words or add_prefix_space) and (len(text) > 0 and not text[0].isspace()):
             text = " " + text
         return (text, kwargs)
-
-class RWKV2TokenizerFast(PreTrainedTokenizerFast):
-    """
-    Construct a "fast" RWKV2 tokenizer (backed by HuggingFace's *tokenizers* library).
-
-    Args:
-        vocab_file (`str`):
-            Path to the vocabulary file.
-    """
-
-    vocab_files_names = VOCAB_FILES_NAMES
-    pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
-    max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
-    model_input_names = ["input_ids", "attention_mask"]
-
-    def __init__(
-            self,
-            vocab_file,
-            merges_file,
-            unk_token="<|endoftext|>",
-            bos_token="<|endoftext|>",
-            eos_token="<|endoftext|>",
-            add_prefix_space=False,
-            trim_offsets=True,
-            **kwargs
-    ):
-        super().__init__(
-            ByteLevelBPETokenizer(
-                vocab_file=vocab_file,
-                merges_file=merges_file,
-                add_prefix_space=add_prefix_space,
-                trim_offsets=trim_offsets,
-            ),
-            bos_token=bos_token,
-            eos_token=eos_token,
-            unk_token=unk_token,
-            **kwargs,
-        )
-        self.add_prefix_space = add_prefix_space
-
-    def build_inputs_with_special_tokens(self, token_ids_0, token_ids_1=None):
-        output = [self.bos_token_id] + token_ids_0 + [self.eos_token_id]
-        if token_ids_1 is None:
-            return output
-
-        return output + [self.eos_token_id] + token_ids_1 + [self.eos_token_id]
-
-
-    def create_token_type_ids_from_sequences(
-            self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
-    ) -> List[int]:
-        """
-        Create a mask from the two sequences passed to be used in a sequence-pair classification task.
-        RWKV2 does not make use of token type ids, therefore a list of zeros is returned.
-
-        Args:
-            token_ids_0 (`List[int]`):
-                List of IDs.
-            token_ids_1 (`List[int]`, *optional*):
-                Optional second list of IDs for sequence pairs.
-
-        Returns:
-            `List[int]`:  List of zeros.
-        """
-        sep = [self.sep_token_id]
-        cls = [self.cls_token_id]
-
-        if token_ids_1 is None:
-            return len(cls + token_ids_0 + sep) * [0]
-        return len(cls + token_ids_0 + sep + sep + token_ids_1 + sep) * [0]
-
-
