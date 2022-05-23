@@ -92,22 +92,18 @@ class RWKV2Config(PretrainedConfig):
         ctx_len=768,
         n_layer=12,
         n_embd=768,
-        hidden_act="sigmoid",
+#        hidden_act="sigmoid",
         is_encoder_decoder=False,
         use_cache=True,
-        bos_token_id=0,
-        eos_token_id=2,
         **kwargs
     ):
         self.vocab_size = vocab_size
         self.ctx_len = ctx_len
         self.n_layer = n_layer
         self.n_embd = n_embd
-        self.hidden_act = hidden_act
+#        self.hidden_act = hidden_act
         self.use_cache = use_cache
 
         super().__init__(
-            bos_token_id=bos_token_id,
-            eos_token_id=eos_token_id,
             **kwargs
         )
