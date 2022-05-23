@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes for RWKV2."""
+
+import json
+from pathlib import Path
 from typing import List, Optional
 
 from tokenizers import ByteLevelBPETokenizer
@@ -24,11 +27,12 @@ from ...utils import logging
 
 logger = logging.get_logger(__name__)
 
-VOCAB_FILES_NAMES = {"vocab_file": "vocab.txt"}
+VOCAB_FILES_NAMES = {"vocab_file": "vocab.json"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
-        "rwkv-v2": "https://huggingface.co/rwkv-v2/resolve/main/vocab.txt",
+        #"rwkv-v2": "https://huggingface.co/rwkv-v2/resolve/main/vocab.txt",
+        "rwkv-v2": "vocab.json"
     },
 }
 
@@ -53,37 +57,68 @@ class RWKV2Tokenizer(PreTrainedTokenizer):
     def __init__(
             self,
             vocab_file,
+            eos_token="\n",
             unk_token="<|unk|>",
-            bos_token="<|endoftext|>",
-            eos_token="<|endoftext|>",
             **kwargs
     ):
         bos_token = AddedToken(bos_token, lstrip=False, rstrip=False) if isinstance(bos_token, str) else bos_token
         eos_token = AddedToken(eos_token, lstrip=False, rstrip=False) if isinstance(eos_token, str) else eos_token
         unk_token = AddedToken(unk_token, lstrip=False, rstrip=False) if isinstance(unk_token, str) else unk_token
-        super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
+        super().__init__(
+            eos_token=eos_token, 
+            unk_token=unk_token, 
+            **kwargs
+            )
 
-        """Initialisation"""
+        """ Initialisation"""
+
+        with open(vocab_file, encodeing="utf-16") as vocab_file:
+            vocab_loaded = json.load(vocab_file.load)
+        self.encoder = {v: int(k) for k,v in vocab_loaded.items()}
+        self.decoder = {int(k): v for k,v in vocab_loaded.items()}
+        if unk_token.content not in self.encoder:
+            self.unk_token_id = max(self.decoder) + 1
+            self.encoder[unk_token] = self.unk_token_id
+            self.decoder[unk_token_id] = unk_token.content
+        else:
+            self.unk_token_id = self.encoder(unk_token.content)
+        if eos_token.content not in self.encoder:
+            self.eos_token_id = max(self.decoder) + 1
+            self.encoder[eos_token] = self.eos_token_id
+            self.decoder[eos_token_id] = eos_token.content
+        else:
+            self.eos_token_id = self.encoder(eos_token.content)
+        assert len(self.encoder) == len(self.decoder)
 
     @property
     def vocab_size(self):
-        """Returns vocab size"""
-        return 
+        """ Returns vocab size """
+        return len(self.decoder)
 
     def get_vocab(self):
-        """Returns vocab as a dict"""
+        """ Returns vocab as a dict """
+        return self.encoder
 
     def _tokenize(self, text):
         """ Returns a tokenized string. """
 
     def _convert_token_to_id(self, token):
         """ Converts a token (str) in an id using the vocab. """
+        if token not in self.encoder:
+            return self.unk_token_id
+        return self.encoder[token]
 
     def _convert_id_to_token(self, index):
         """Converts an index (integer) in a token (str) using the vocab."""
+        return self.decoder[index]
 
     def convert_tokens_to_string(self, tokens):
         """ Converts a sequence of tokens (string) in a single string. """
+        for char in list(tokens):
+            if char in self.encoder:
+                yield self.encoder(char)
+            else:
+                yield self.unk_token_id
 
     def save_vocabulary(self, save_directory):
         """
@@ -96,6 +131,9 @@ class RWKV2Tokenizer(PreTrainedTokenizer):
         Returns:
             `Tuple(str)`: Paths to the files saved.
         """
+        with open(Path(save_directory, 'vocab.json'), "w", encoding="utf-16") as vocab_file:
+            vocab_file.write(json.dumps(self.decoder, ensure_ascii=False))
+
 
     def build_inputs_with_special_tokens(
             self, token_ids_0: List[int], token_ids_1: Optional[List[int]] = None
