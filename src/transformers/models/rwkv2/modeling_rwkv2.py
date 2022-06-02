@@ -397,12 +397,12 @@ class RWKV2Model(RWKV2PreTrainedModel):
         return optim_groups
 
     def get_input_embeddings(self):
-        raise NotImplementedError
-        # return self.embeddings.word_embeddings
+        # raise NotImplementedError
+        return self.emb
 
     def set_input_embeddings(self, value):
-        raise NotImplementedError
-        # self.embeddings.word_embeddings = value
+        # raise NotImplementedError
+        self.emb = value
 
     def get_ctx_len(self):
         return self.ctx_len
@@ -416,14 +416,13 @@ class RWKV2Model(RWKV2PreTrainedModel):
     )
     def forward(
         self,
-        input_ids=None,
-        token_type_ids=None,
+        input_ids: Optional[torch.Tensor] = None,
+        token_type_ids: Optional[torch.Tensor] = None,
         position_ids=None,
         encoder_hidden_states=None,
-        encoder_attention_mask=None,
-        past_key_values=None,
-        use_cache=None,
-        output_hidden_states=None,
+        past_key_values: Optional[Tuple[torch.FloatTensor]] = None,
+        use_cache: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
         return_dict=None,
     ):
         r"""

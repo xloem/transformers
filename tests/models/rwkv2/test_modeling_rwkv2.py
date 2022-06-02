@@ -273,6 +273,12 @@ class RWKV2ModelTester:
 @require_torch
 class RWKV2ModelTest(ModelTesterMixin, unittest.TestCase):
 
+    def __init__(self, parameter):
+        super().__init__(parameter)
+        self.test_pruning = False
+        self.test_head_masking = False
+        self.has_attentions = False
+
     all_model_classes = (
         (
             RWKV2Model,
