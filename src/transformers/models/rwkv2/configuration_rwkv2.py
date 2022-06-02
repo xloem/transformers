@@ -93,17 +93,25 @@ class RWKV2Config(PretrainedConfig):
         ctx_len=768,
         n_layer=12,
         n_embd=768,
+        n_head=768,
+        n_attn=768,
+        n_ffn=768,
 #        hidden_act="sigmoid",
         is_encoder_decoder=False,
         use_cache=True,
+        num_attention_heads=0,
         **kwargs
     ):
         self.vocab_size = vocab_size
         self.ctx_len = ctx_len
         self.n_layer = n_layer
         self.n_embd = n_embd
+        self.n_head = n_head
+        self.n_attn = n_attn
+        self.n_ffn = n_embd
 #        self.hidden_act = hidden_act
         self.use_cache = use_cache
+        self.num_attention_heads = 0
 
         super().__init__(
             **kwargs

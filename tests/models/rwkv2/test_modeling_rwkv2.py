@@ -32,11 +32,6 @@ if is_torch_available():
 
     from transformers import (
         RWKV2ForCausalLM,
-        RWKV2ForMaskedLM,
-        RWKV2ForMultipleChoice,
-        RWKV2ForQuestionAnswering,
-        RWKV2ForSequenceClassification,
-        RWKV2ForTokenClassification,
         RWKV2Model,
     )
     from transformers.models.rwkv2.modeling_rwkv2 import (
@@ -57,7 +52,6 @@ class RWKV2ModelTester:
             vocab_size=99,
             hidden_size=32,
             num_hidden_layers=5,
-            num_attention_heads=4,
             intermediate_size=37,
             hidden_act="gelu",
             hidden_dropout_prob=0.1,
@@ -80,11 +74,9 @@ class RWKV2ModelTester:
         self.vocab_size = vocab_size
         self.hidden_size = hidden_size
         self.num_hidden_layers = num_hidden_layers
-        self.num_attention_heads = num_attention_heads
         self.intermediate_size = intermediate_size
         self.hidden_act = hidden_act
         self.hidden_dropout_prob = hidden_dropout_prob
-        self.attention_probs_dropout_prob = attention_probs_dropout_prob
         self.max_position_embeddings = max_position_embeddings
         self.type_vocab_size = type_vocab_size
         self.type_sequence_label_size = type_sequence_label_size
@@ -97,8 +89,6 @@ class RWKV2ModelTester:
         input_ids = ids_tensor([self.batch_size, self.seq_length], self.vocab_size)
 
         input_mask = None
-        if self.use_input_mask:
-            input_mask = random_attention_mask([self.batch_size, self.seq_length])
 
         token_type_ids = None
         if self.use_token_type_ids:
@@ -121,14 +111,12 @@ class RWKV2ModelTester:
             vocab_size=self.vocab_size,
             hidden_size=self.hidden_size,
             num_hidden_layers=self.num_hidden_layers,
-            num_attention_heads=self.num_attention_heads,
             intermediate_size=self.intermediate_size,
             hidden_act=self.hidden_act,
             hidden_dropout_prob=self.hidden_dropout_prob,
-            attention_probs_dropout_prob=self.attention_probs_dropout_prob,
             max_position_embeddings=self.max_position_embeddings,
             type_vocab_size=self.type_vocab_size,
-            is_decoder=False,
+            is_decoder=True,
             initializer_range=self.initializer_range,
         )
 
@@ -145,7 +133,6 @@ class RWKV2ModelTester:
 
         config.is_decoder = True
         encoder_hidden_states = floats_tensor([self.batch_size, self.seq_length, self.hidden_size])
-        encoder_attention_mask = ids_tensor([self.batch_size, self.seq_length], vocab_size=2)
 
         return (
             config,
@@ -156,7 +143,6 @@ class RWKV2ModelTester:
             token_labels,
             choice_labels,
             encoder_hidden_states,
-            encoder_attention_mask,
         )
 
     def create_and_check_model(
@@ -180,22 +166,17 @@ class RWKV2ModelTester:
             token_labels,
             choice_labels,
             encoder_hidden_states,
-            encoder_attention_mask,
     ):
-        config.add_cross_attention = True
         model = RWKV2Model(config)
         model.to(torch_device)
         model.eval()
         result = model(
             input_ids,
-            attention_mask=input_mask,
             token_type_ids=token_type_ids,
             encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
         )
         result = model(
             input_ids,
-            attention_mask=input_mask,
             token_type_ids=token_type_ids,
             encoder_hidden_states=encoder_hidden_states,
         )
@@ -212,18 +193,8 @@ class RWKV2ModelTester:
             token_labels,
             choice_labels,
             encoder_hidden_states,
-            encoder_attention_mask,
     ):
         model = RWKV2ForCausalLM(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
-
-    def create_and_check_for_masked_lm(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        model = RWKV2ForMaskedLM(config=config)
         model.to(torch_device)
         model.eval()
         result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
@@ -239,10 +210,8 @@ class RWKV2ModelTester:
         token_labels,
         choice_labels,
         encoder_hidden_states,
-        encoder_attention_mask,
     ):
         config.is_decoder = True
-        config.add_cross_attention = True
         model = RWKV2ForCausalLM(config=config)
         model.to(torch_device)
         model.eval()
@@ -250,7 +219,6 @@ class RWKV2ModelTester:
         # first forward pass
         outputs = model(
             input_ids,
-            attention_mask=input_mask,
             encoder_hidden_states=encoder_hidden_states,
             encoder_attention_mask=encoder_attention_mask,
             use_cache=True,
@@ -267,16 +235,12 @@ class RWKV2ModelTester:
 
         output_from_no_past = model(
             next_input_ids,
-            attention_mask=next_attention_mask,
             encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
             output_hidden_states=True,
         )["hidden_states"][0]
         output_from_past = model(
             next_tokens,
-            attention_mask=next_attention_mask,
             encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
             past_key_values=past_key_values,
             output_hidden_states=True,
         )["hidden_states"][0]
@@ -290,60 +254,6 @@ class RWKV2ModelTester:
 
         # test that outputs are equal for slice
         self.parent.assertTrue(torch.allclose(output_from_past_slice, output_from_no_past_slice, atol=1e-3))
-
-    def create_and_check_for_question_answering(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        model = RWKV2ForQuestionAnswering(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(
-            input_ids,
-            attention_mask=input_mask,
-            token_type_ids=token_type_ids,
-            start_positions=sequence_labels,
-            end_positions=sequence_labels,
-        )
-        self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
-        self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
-
-    def create_and_check_for_sequence_classification(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        config.num_labels = self.num_labels
-        model = RWKV2ForSequenceClassification(config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=sequence_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_labels))
-
-    def create_and_check_for_token_classification(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        config.num_labels = self.num_labels
-        model = RWKV2ForTokenClassification(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.num_labels))
-
-    def create_and_check_for_multiple_choice(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        config.num_choices = self.num_choices
-        model = RWKV2ForMultipleChoice(config=config)
-        model.to(torch_device)
-        model.eval()
-        multiple_choice_inputs_ids = input_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-        multiple_choice_token_type_ids = token_type_ids.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-        multiple_choice_input_mask = input_mask.unsqueeze(1).expand(-1, self.num_choices, -1).contiguous()
-        result = model(
-            multiple_choice_inputs_ids,
-            attention_mask=multiple_choice_input_mask,
-            token_type_ids=multiple_choice_token_type_ids,
-            labels=choice_labels,
-        )
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.num_choices))
 
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
@@ -366,12 +276,7 @@ class RWKV2ModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (
             RWKV2Model,
-            RWKV2ForMaskedLM,
             RWKV2ForCausalLM,
-            RWKV2ForMultipleChoice,
-            RWKV2ForQuestionAnswering,
-            RWKV2ForSequenceClassification,
-            RWKV2ForTokenClassification,
         )
         if is_torch_available()
         else ()
@@ -395,29 +300,9 @@ class RWKV2ModelTest(ModelTesterMixin, unittest.TestCase):
             config_and_inputs[0].position_embedding_type = type
             self.model_tester.create_and_check_model(*config_and_inputs)
 
-    def test_for_masked_lm(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_masked_lm(*config_and_inputs)
-
-    def test_for_multiple_choice(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_multiple_choice(*config_and_inputs)
-
     def test_decoder_model_past_with_large_inputs(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs_for_decoder()
         self.model_tester.create_and_check_decoder_model_past_large_inputs(*config_and_inputs)
-
-    def test_for_question_answering(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_question_answering(*config_and_inputs)
-
-    def test_for_sequence_classification(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_sequence_classification(*config_and_inputs)
-
-    def test_for_token_classification(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_token_classification(*config_and_inputs)
 
     def test_model_as_decoder(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs_for_decoder()

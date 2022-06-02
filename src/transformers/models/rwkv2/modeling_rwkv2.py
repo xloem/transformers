@@ -190,7 +190,7 @@ class RWKV2TimeMix(nn.Module):
         self.time_decay = nn.Parameter(torch.log(decay_speed))
 
         self.time_curve = torch.tensor([-(config.ctx_len - 2 - i) for i in range(config.ctx_len-1)]).unsqueeze(0)
-        if RUN_DEVICE == 'cuda':
+        if torch.cuda.is_available():
             self.time_curve = self.time_curve.to('cuda')
         self.time_first = nn.Parameter(torch.ones(config.n_head, 1) * math.log(0.3))
 
@@ -306,13 +306,13 @@ class RWKV2Model(RWKV2PreTrainedModel):
     """
 
     def __init__(self, config):
-        super().__init__()
+        super().__init__(config)
         self.step = 0
         self.config = config
         self.emb = nn.Embedding(config.vocab_size, config.n_embd)
         self.h = nn.Sequential(*[RWKV2Block(config, i) for i in range(config.n_layer)])
         self.ln_out = nn.LayerNorm(config.n_embd)
-        self.head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
         self.ctx_len = config.ctx_len
 
         # Initialize weights and apply final processing
@@ -320,15 +320,15 @@ class RWKV2Model(RWKV2PreTrainedModel):
 
         logger.info("number of parameters: %e", sum(p.numel() for p in self.parameters()))
 
-    def post_init(self): # fancy initialization of all lin & emb layer in the module
+    def post_init(self): # initialization of all lin & emb layer in the module
         super().post_init()
 
-        for m in module.modules():
+        for m in self.modules():
             if not isinstance(m, (nn.Linear, nn.Embedding)):
                 continue
             with torch.no_grad():
                 name = '[unknown weight]'
-                for name, parameter in module.named_parameters(): # find the name of the weight
+                for name, parameter in self.named_parameters(): # find the name of the weight
                     if id(m.weight) == id(parameter):
                         break
 
@@ -338,7 +338,7 @@ class RWKV2Model(RWKV2PreTrainedModel):
 
                 if isinstance(m, nn.Embedding):
                     gain = math.sqrt(max(shape[0], shape[1]))
-                    if shape[0] == self.config.vocab_size and shape[1] == config.n_embd: # token emb?
+                    if shape[0] == self.config.vocab_size and shape[1] == self.config.n_embd: # token emb?
                         scale = 1e-4
                     else:
                         scale = 0
@@ -348,7 +348,7 @@ class RWKV2Model(RWKV2PreTrainedModel):
                         m.bias.data.zero_()
                     if shape[0] > shape[1]:
                         gain = math.sqrt(shape[0] / shape[1])
-                    if shape[0] == self.config.vocab_size and shape[1] == config.n_embd: # final projection?
+                    if shape[0] == self.config.vocab_size and shape[1] == self.config.n_embd: # final projection?
                         scale = 0.5
 
                 if hasattr(m, 'scale_init'):
@@ -457,13 +457,13 @@ class RWKV2Model(RWKV2PreTrainedModel):
 
         output_layer = self.ln_out(hidden_states)
         
-        head = self.head(output_layer)
+        lm_head = self.lm_head(output_layer)
         
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(head.view(-1, head.size(-1)), targets.view(-1))
+            loss = F.cross_entropy(lm_head.view(-1, lm_head.size(-1)), targets.view(-1))
 
-        return head, loss
+        return lm_head, loss
 
 
 
@@ -480,17 +480,17 @@ class RWKV2ForCausalLM(RWKV2PreTrainedModel):
         if not config.is_decoder:
             logger.warning("If you want to use `RWKV2ForCausalLM` as a standalone, add `is_decoder=True.`")
 
-        self.rwkv2 = RWKV2Model(config)
-        self.cls = RWKV2OnlyMLMHead(config)
+        self.transformer = RWKV2Model(config)
+        self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # Initialize weights and apply final processing
         self.post_init()
 
     def get_output_embeddings(self):
-        return self.cls.predictions.decoder
+        return self.lm_head
 
     def set_output_embeddings(self, new_embeddings):
-        self.cls.predictions.decoder = new_embeddings
+        self.lm_head = new_embeddings
 
     @add_start_docstrings_to_model_forward(RWKV2_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=BaseModelOutputWithPast, config_class=_CONFIG_FOR_DOC)
