@@ -756,16 +756,16 @@ else:
     _import_structure["models.rwkv2"].extend(
         [
             "RWKV2_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "RWKV2ForMaskedLM",
+#            "RWKV2ForMaskedLM",
             "RWKV2ForCausalLM",
-            "RWKV2ForMultipleChoice",
-            "RWKV2ForQuestionAnswering",
-            "RWKV2ForSequenceClassification",
-            "RWKV2ForTokenClassification",
-            "RWKV2Layer",
+#            "RWKV2ForMultipleChoice",
+#            "RWKV2ForQuestionAnswering",
+#            "RWKV2ForSequenceClassification",
+#            "RWKV2ForTokenClassification",
+#            "RWKV2Layer",
             "RWKV2Model",
             "RWKV2PreTrainedModel",
-            "load_tf_weights_in_rwkv2",
+#            "load_tf_weights_in_rwkv2",
         ]
     )
     _import_structure["models.albert"].extend(
@@ -3418,16 +3418,16 @@ if TYPE_CHECKING:
 
         from .models.rwkv2 import (
             RWKV2_PRETRAINED_MODEL_ARCHIVE_LIST,
-            RWKV2ForMaskedLM,
+#            RWKV2ForMaskedLM,
             RWKV2ForCausalLM,
-            RWKV2ForMultipleChoice,
-            RWKV2ForQuestionAnswering,
-            RWKV2ForSequenceClassification,
-            RWKV2ForTokenClassification,
-            RWKV2Layer,
+#            RWKV2ForMultipleChoice,
+#            RWKV2ForQuestionAnswering,
+#            RWKV2ForSequenceClassification,
+#            RWKV2ForTokenClassification,
+#            RWKV2Layer,
             RWKV2Model,
             RWKV2PreTrainedModel,
-            load_tf_weights_in_rwkv2,
+#            load_tf_weights_in_rwkv2,
         )
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
