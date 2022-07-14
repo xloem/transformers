@@ -99,7 +99,6 @@ class RWKV2Config(PretrainedConfig):
 #        hidden_act="sigmoid",
         is_encoder_decoder=False,
         use_cache=True,
-        num_attention_heads=0,
         **kwargs
     ):
         self.vocab_size = vocab_size
@@ -111,8 +110,19 @@ class RWKV2Config(PretrainedConfig):
         self.n_ffn = n_embd
 #        self.hidden_act = hidden_act
         self.use_cache = use_cache
-        self.num_attention_heads = 0
 
         super().__init__(
             **kwargs
+        )
+
+    @property
+    def num_attention_heads(self):
+        logger.info(f"The number of attention heads is the same as the model’s feature dimension.")
+        return -1
+
+    @num_attention_heads.setter
+    def num_attention_heads(self, value):
+        # Message copied from "An Attention Free Transformer"
+        raise NotImplementedError(
+            f"The number of attention heads is the same as the model’s feature dimension."
         )
