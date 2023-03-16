@@ -257,6 +257,7 @@ _import_structure = {
     "models.layoutxlm": ["LayoutXLMProcessor"],
     "models.led": ["LED_PRETRAINED_CONFIG_ARCHIVE_MAP", "LEDConfig", "LEDTokenizer"],
     "models.levit": ["LEVIT_PRETRAINED_CONFIG_ARCHIVE_MAP", "LevitConfig"],
+    "models.llama": ["LLAMA_PRETRAINED_CONFIG_ARCHIVE_MAP", "LlamaConfig"],
     "models.longformer": ["LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP", "LongformerConfig", "LongformerTokenizer"],
     "models.longt5": ["LONGT5_PRETRAINED_CONFIG_ARCHIVE_MAP", "LongT5Config"],
     "models.luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig", "LukeTokenizer"],
@@ -528,6 +529,7 @@ else:
     _import_structure["models.deberta_v2"].append("DebertaV2Tokenizer")
     _import_structure["models.fnet"].append("FNetTokenizer")
     _import_structure["models.layoutxlm"].append("LayoutXLMTokenizer")
+    _import_structure["models.llama"].append("LlamaTokenizer")
     _import_structure["models.m2m_100"].append("M2M100Tokenizer")
     _import_structure["models.marian"].append("MarianTokenizer")
     _import_structure["models.mbart"].append("MBartTokenizer")
@@ -1466,6 +1468,13 @@ else:
             "LevitForImageClassificationWithTeacher",
             "LevitModel",
             "LevitPreTrainedModel",
+        ]
+    )
+    _import_structure["models.llama"].extend(
+        [
+            "LlamaForCausalLM",
+            "LlamaModel",
+            "LlamaPreTrainedModel",
         ]
     )
     _import_structure["models.longformer"].extend(
@@ -3260,6 +3269,7 @@ if TYPE_CHECKING:
     from .models.layoutxlm import LayoutXLMProcessor
     from .models.led import LED_PRETRAINED_CONFIG_ARCHIVE_MAP, LEDConfig, LEDTokenizer
     from .models.levit import LEVIT_PRETRAINED_CONFIG_ARCHIVE_MAP, LevitConfig
+    from .models.llama import LLAMA_PRETRAINED_CONFIG_ARCHIVE_MAP, LlamaConfig
     from .models.longformer import LONGFORMER_PRETRAINED_CONFIG_ARCHIVE_MAP, LongformerConfig, LongformerTokenizer
     from .models.longt5 import LONGT5_PRETRAINED_CONFIG_ARCHIVE_MAP, LongT5Config
     from .models.luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig, LukeTokenizer
@@ -3504,6 +3514,7 @@ if TYPE_CHECKING:
         from .models.deberta_v2 import DebertaV2Tokenizer
         from .models.fnet import FNetTokenizer
         from .models.layoutxlm import LayoutXLMTokenizer
+        from .models.llama import LlamaTokenizer
         from .models.m2m_100 import M2M100Tokenizer
         from .models.marian import MarianTokenizer
         from .models.mbart import MBart50Tokenizer, MBartTokenizer
@@ -3747,7 +3758,6 @@ if TYPE_CHECKING:
         from .generation_utils import top_k_top_p_filtering
         from .modeling_utils import PreTrainedModel
 
-        # PyTorch model imports
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             AlbertForMaskedLM,
@@ -4256,6 +4266,22 @@ if TYPE_CHECKING:
             LevitModel,
             LevitPreTrainedModel,
         )
+<<<<<<< HEAD
+=======
+        from .models.lilt import (
+            LILT_PRETRAINED_MODEL_ARCHIVE_LIST,
+            LiltForQuestionAnswering,
+            LiltForSequenceClassification,
+            LiltForTokenClassification,
+            LiltModel,
+            LiltPreTrainedModel,
+        )
+        from .models.llama import (
+            LlamaForCausalLM,
+            LlamaModel,
+            LlamaPreTrainedModel,
+        )
+>>>>>>> 0041be5b3... LLaMA Implementation (#21955)
         from .models.longformer import (
             LONGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
             LongformerForMaskedLM,
