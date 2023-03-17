@@ -3758,6 +3758,7 @@ if TYPE_CHECKING:
         from .generation_utils import top_k_top_p_filtering
         from .modeling_utils import PreTrainedModel
 
+        # PyTorch model imports
         from .models.albert import (
             ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST,
             AlbertForMaskedLM,
@@ -4266,22 +4267,11 @@ if TYPE_CHECKING:
             LevitModel,
             LevitPreTrainedModel,
         )
-<<<<<<< HEAD
-=======
-        from .models.lilt import (
-            LILT_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LiltForQuestionAnswering,
-            LiltForSequenceClassification,
-            LiltForTokenClassification,
-            LiltModel,
-            LiltPreTrainedModel,
-        )
         from .models.llama import (
             LlamaForCausalLM,
             LlamaModel,
             LlamaPreTrainedModel,
         )
->>>>>>> 0041be5b3... LLaMA Implementation (#21955)
         from .models.longformer import (
             LONGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
             LongformerForMaskedLM,
