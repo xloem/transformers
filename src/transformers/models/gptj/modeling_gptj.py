@@ -197,7 +197,7 @@ class GPTJAttention(nn.Module):
 
     def forward(
         self,
-        hidden_states: Optional[torch.FloatTensor],
+        hidden_states: torch.FloatTensor,
         attention_mask: Optional[torch.FloatTensor] = None,
         layer_past: Optional[Tuple[torch.Tensor]] = None,
         head_mask: Optional[torch.FloatTensor] = None,
