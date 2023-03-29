@@ -1446,6 +1446,9 @@ INIT_TOKENIZER_DOCSTRING = r"""
             A tuple or a list of additional special tokens. Add them here to ensure they won't be split by the
             tokenization process. Will be associated to `self.additional_special_tokens` and
             `self.additional_special_tokens_ids`.
+        clean_up_tokenization_spaces (`bool`, *optional*, defaults to `True`):
+            Whether or not the model should cleanup the spaces that were added when splitting the input text during the
+            tokenization process.
 """
 
 
@@ -1496,6 +1499,9 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
             )
 
         self.model_input_names = kwargs.pop("model_input_names", self.model_input_names)
+
+        # By default, cleaning tokenization spaces for both fast and slow tokenizers
+        self.clean_up_tokenization_spaces = kwargs.pop("clean_up_tokenization_spaces", True)
 
         self.deprecation_warnings = (
             {}
@@ -1552,7 +1558,7 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
             f"{'PreTrainedTokenizerFast' if self.is_fast else 'PreTrainedTokenizer'}(name_or_path='{self.name_or_path}',"
             f" vocab_size={self.vocab_size}, model_max_len={self.model_max_length}, is_fast={self.is_fast},"
             f" padding_side='{self.padding_side}', truncation_side='{self.truncation_side}',"
-            f" special_tokens={self.special_tokens_map_extended})"
+            f" special_tokens={self.special_tokens_map_extended}, clean_up_tokenization_spaces={self.clean_up_tokenization_spaces})"
         )
 
     def get_vocab(self) -> Dict[str, int]:
@@ -2080,6 +2086,14 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
         )
 
         tokenizer_config = copy.deepcopy(self.init_kwargs)
+
+        # TODO: Ensure the modified attributes (those are also in the __init__ kwargs) will give identical tokenizers
+        # target_keys = self.init_kwargs.keys()
+        target_keys = ["model_max_length", "clean_up_tokenization_spaces"]
+        for k in target_keys:
+            if hasattr(self, k):
+                tokenizer_config[k] = getattr(self, k)
+
         if len(self.init_inputs) > 0:
             tokenizer_config["init_inputs"] = copy.deepcopy(self.init_inputs)
         for file_id in self.vocab_files_names.keys():
@@ -3371,8 +3385,8 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
         self,
         sequences: Union[List[int], List[List[int]], "np.ndarray", "torch.Tensor", "tf.Tensor"],
         skip_special_tokens: bool = False,
-        clean_up_tokenization_spaces: bool = True,
-        **kwargs
+        clean_up_tokenization_spaces: bool = None,
+        **kwargs,
     ) -> List[str]:
         """
         Convert a list of lists of token ids into a list of strings by calling decode.
@@ -3382,8 +3396,9 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
                 List of tokenized input ids. Can be obtained using the `__call__` method.
             skip_special_tokens (`bool`, *optional*, defaults to `False`):
                 Whether or not to remove special tokens in the decoding.
-            clean_up_tokenization_spaces (`bool`, *optional*, defaults to `True`):
-                Whether or not to clean up the tokenization spaces.
+            clean_up_tokenization_spaces (`bool`, *optional*):
+                Whether or not to clean up the tokenization spaces. If `None`, will default to
+                `self.clean_up_tokenization_spaces`.
             kwargs (additional keyword arguments, *optional*):
                 Will be passed to the underlying model specific decode method.
 
@@ -3404,8 +3419,8 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
         self,
         token_ids: Union[int, List[int], "np.ndarray", "torch.Tensor", "tf.Tensor"],
         skip_special_tokens: bool = False,
-        clean_up_tokenization_spaces: bool = True,
-        **kwargs
+        clean_up_tokenization_spaces: bool = None,
+        **kwargs,
     ) -> str:
         """
         Converts a sequence of ids in a string, using the tokenizer and vocabulary with options to remove special
@@ -3418,8 +3433,9 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
                 List of tokenized input ids. Can be obtained using the `__call__` method.
             skip_special_tokens (`bool`, *optional*, defaults to `False`):
                 Whether or not to remove special tokens in the decoding.
-            clean_up_tokenization_spaces (`bool`, *optional*, defaults to `True`):
-                Whether or not to clean up the tokenization spaces.
+            clean_up_tokenization_spaces (`bool`, *optional*):
+                Whether or not to clean up the tokenization spaces. If `None`, will default to
+                `self.clean_up_tokenization_spaces`.
             kwargs (additional keyword arguments, *optional*):
                 Will be passed to the underlying model specific decode method.
 
@@ -3440,8 +3456,8 @@ class PreTrainedTokenizerBase(SpecialTokensMixin, PushToHubMixin):
         self,
         token_ids: Union[int, List[int]],
         skip_special_tokens: bool = False,
-        clean_up_tokenization_spaces: bool = True,
-        **kwargs
+        clean_up_tokenization_spaces: bool = None,
+        **kwargs,
     ) -> str:
         raise NotImplementedError
 
