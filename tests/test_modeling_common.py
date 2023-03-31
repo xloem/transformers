@@ -26,6 +26,7 @@ import tempfile
 import unittest
 import unittest.mock as mock
 import warnings
+from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -1503,6 +1504,89 @@ class ModelTesterMixin:
             # # Check that the embedding layer and decoding layer are the same in size and in value
             # self.assertTrue(model.transformer.wte.weight.shape, model.lm_head.weight.shape)
             # self.assertTrue(check_same_values(model.transformer.wte, model.lm_head))
+
+    @require_safetensors
+    def test_can_use_safetensors(self):
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        for model_class in self.all_model_classes:
+            model_tied = model_class(config)
+            with tempfile.TemporaryDirectory() as d:
+                try:
+                    model_tied.save_pretrained(d, safe_serialization=True)
+                except Exception as e:
+                    raise Exception(f"Class {model_class.__name__} cannot be saved using safetensors: {e}")
+
+                model_reloaded, infos = model_class.from_pretrained(d, output_loading_info=True)
+                # Checking the state dicts are correct
+                reloaded_state = model_reloaded.state_dict()
+                for k, v in model_tied.state_dict().items():
+                    self.assertIn(k, reloaded_state, f"Key {k} is missing from reloaded")
+                    torch.testing.assert_close(
+                        v, reloaded_state[k], msg=lambda x: f"{model_class.__name__}: Tensor {k}: {x}"
+                    )
+
+                # Checking the tensor sharing are correct
+                ptrs = defaultdict(list)
+                for k, v in model_tied.state_dict().items():
+                    ptrs[v.data_ptr()].append(k)
+
+                shared_ptrs = {k: v for k, v in ptrs.items() if len(v) > 1}
+
+                for _, shared_names in shared_ptrs.items():
+                    reloaded_ptrs = {reloaded_state[k].data_ptr() for k in shared_names}
+                    self.assertEqual(
+                        len(reloaded_ptrs),
+                        1,
+                        f"The shared pointers are incorrect, found different pointers for keys {shared_names}",
+                    )
+
+    def test_tied_model_weights_key_ignore(self):
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        for model_class in self.all_model_classes:
+            model_tied = model_class(config)
+            with tempfile.TemporaryDirectory() as d:
+                model_tied.save_pretrained(d)
+
+                # We are nuking ALL weights on file, so every parameter should
+                # yell on load. We're going to detect if we yell too much, or too little.
+                with open(os.path.join(d, "pytorch_model.bin"), "wb") as f:
+                    torch.save({}, f)
+                model_reloaded, infos = model_class.from_pretrained(d, output_loading_info=True)
+
+                # ! Actually we could use `state_dict()` and check iteratively the tensors which are the same (for instance using `tensor.data_ptr()`). to detect the duplicates.
+                # ```python
+                # model = GPT2LMHeadModel.from_pretrained("gpt2")
+                # "lm_head.weight" in model.state_dict().keys()  # True
+                # "lm_head.weight" in model.named_parameters() # False
+                # In [6]: model.lm_head.weight.data_ptr()
+                # Out[6]: 139901378371648
+                # In [9]: model.transformer.wte.weight.data_ptr()
+                # Out[9]: 139901378371648  # Same PTR, it's the same DATA ! we would need to check for stride too to be 100% accurate.
+                # ```
+
+                prefix = f"{model_reloaded.base_model_prefix}."
+                params = dict(model_reloaded.named_parameters())
+                params.update(dict(model_reloaded.named_buffers()))
+                # param_names = set(k[len(prefix) :] if k.startswith(prefix) else k for k in params.keys())
+                param_names = {k[len(prefix) :] if k.startswith(prefix) else k for k in params.keys()}
+
+                missing_keys = set(infos["missing_keys"])
+
+                extra_missing = missing_keys - param_names
+                # missed_missing = param_names - missing_keys
+
+                self.assertEqual(
+                    extra_missing,
+                    set(),
+                    f"This model {model_class.__name__} might be missing some `keys_to_ignore`: {extra_missing}",
+                )
+
+                # self.assertEqual(
+                #     missed_missing,
+                #     set(),
+                #     f"This model {model_class.__name__} ignores keys {missed_missing} but they look like real"
+                #     " parameters",
+                # )
 
     def test_model_outputs_equivalence(self):
         config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
